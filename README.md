@@ -506,6 +506,21 @@ pip install -e ".[dev]"
 .venv/bin/pytest -q
 ```
 
+Live E2E suite (real TickTick test account via `.env`):
+
+```bash
+TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e
+```
+
+Run a single functional area:
+
+```bash
+TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e_tasks
+TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e_projects
+TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e_tags
+TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e_habits
+```
+
 ## Build
 
 ```bash

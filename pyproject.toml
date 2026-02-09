@@ -56,4 +56,11 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
   "e2e: live end-to-end CLI tests against a real TickTick account",
+  "e2e_core: core CLI help-path E2E tests (server/auth)",
+  "e2e_user: user/account command E2E tests",
+  "e2e_focus: focus analytics command E2E tests",
+  "e2e_projects: folders/projects/columns command E2E tests",
+  "e2e_tags: tag command E2E tests",
+  "e2e_tasks: task command E2E tests",
+  "e2e_habits: habit command E2E tests",
 ]
