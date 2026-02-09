@@ -506,7 +506,15 @@ pip install -e ".[dev]"
 .venv/bin/pytest -q
 ```
 
-Live E2E suite (real TickTick test account via `.env`):
+Live E2E suite (real TickTick test account via `.env.test`):
+
+```bash
+cp .env.example .env.test
+```
+
+Fill `.env.test` with your dedicated test account credentials. The E2E harness
+loads `.env.test` automatically and keeps regular `.env` usage separate for
+local/manual CLI work.
 
 ```bash
 TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e

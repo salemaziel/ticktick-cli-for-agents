@@ -20,6 +20,7 @@ from jsonschema import Draft202012Validator
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 REF_DIR = ROOT_DIR / "tests" / "e2e" / "references"
+E2E_ENV_PATH = ROOT_DIR / ".env.test"
 
 REQUIRED_ENV_VARS = [
     "TICKTICK_CLIENT_ID",
@@ -28,6 +29,12 @@ REQUIRED_ENV_VARS = [
     "TICKTICK_USERNAME",
     "TICKTICK_PASSWORD",
 ]
+
+
+def _load_e2e_env(*, override: bool) -> None:
+    """Load dedicated E2E credentials from .env.test when available."""
+    if E2E_ENV_PATH.exists():
+        load_dotenv(dotenv_path=E2E_ENV_PATH, override=override)
 
 
 @dataclass
@@ -147,7 +154,7 @@ async def _cleanup_live_state(state: LiveState) -> None:
     ]):
         return
 
-    load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
+    _load_e2e_env(override=True)
 
     from ticktick_cli.commands import _apply_v2_auth_rate_limit_workaround
     from ticktick_sdk.client import TickTickClient
@@ -201,14 +208,17 @@ def command_surface_manifest() -> dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def e2e_enabled() -> None:
-    load_dotenv(dotenv_path=ROOT_DIR / ".env", override=False)
+    _load_e2e_env(override=True)
 
     if os.getenv("TICKTICK_RUN_E2E") != "1":
         pytest.skip("Set TICKTICK_RUN_E2E=1 to run live CLI E2E tests.")
 
     missing = [name for name in REQUIRED_ENV_VARS if not os.getenv(name)]
     if missing:
-        pytest.skip(f"Missing required env vars for E2E tests: {', '.join(missing)}")
+        pytest.skip(
+            "Missing required env vars for E2E tests "
+            f"(expected in .env.test or process env): {', '.join(missing)}"
+        )
 
 
 @pytest.fixture
