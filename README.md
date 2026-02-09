@@ -1,29 +1,82 @@
 # ticktick-cli
 
-Standalone command-line interface for TickTick, powered by
-[`ticktick-sdk`](https://pypi.org/project/ticktick-sdk/).
+A standalone command-line interface for TickTick, built on top of
+[`ticktick-sdk`](https://github.com/dev-mirzabicer/ticktick-sdk).
 
-This repository contains only CLI code and depends on `ticktick-sdk` for API
-and auth implementation.
-
-## Progress Tracker
-
-| Area | Status | Notes |
-|------|--------|-------|
-| Tasks | Done | Full single-task + batch task command surface implemented |
-| Projects | Done | Full project lifecycle commands implemented |
-| Folders | Done | Folder (project group) lifecycle commands implemented |
-| Columns | Done | Kanban column lifecycle commands implemented |
-| Tags | Done | Full tag lifecycle commands implemented |
-| Habits | Done | Full habit management and check-in commands implemented |
-| User | Done | Profile/status/statistics/preferences commands implemented |
-| Focus | Done | Focus heatmap and tag analytics commands implemented |
-| Sync | Done | Full account sync payload command implemented |
+`ticktick-cli` gives you a scriptable interface for daily TickTick operations,
+including tasks, projects, folders, columns, tags, habits, user info, focus
+analytics, and full account sync payload access.
 
 ## Installation
 
 ```bash
 pip install ticktick-cli
+```
+
+Python 3.11+ is required.
+
+## Authentication Setup (Required)
+
+This CLI needs both OAuth2 (V1 API) and account credentials (V2/session API).
+
+1. Create an app at TickTick Developer Portal:
+   `https://developer.ticktick.com/manage`
+2. Set redirect URI in your TickTick app.
+   Default is:
+   `http://127.0.0.1:8080/callback`
+3. Create a `.env` file in your working directory:
+
+```bash
+cp .env.example .env
+```
+
+4. Fill required values:
+
+```dotenv
+# OAuth app credentials (required)
+TICKTICK_CLIENT_ID=your_client_id
+TICKTICK_CLIENT_SECRET=your_client_secret
+TICKTICK_REDIRECT_URI=http://127.0.0.1:8080/callback
+TICKTICK_ACCESS_TOKEN=
+
+# TickTick account credentials (required for V2/session endpoints)
+TICKTICK_USERNAME=you@example.com
+TICKTICK_PASSWORD=your_password
+```
+
+5. Run OAuth flow to get `TICKTICK_ACCESS_TOKEN`:
+
+```bash
+ticktick auth
+```
+
+If you are on SSH/headless environment:
+
+```bash
+ticktick auth --manual
+```
+
+6. Save the generated token in `.env` as `TICKTICK_ACCESS_TOKEN`.
+7. Verify connection:
+
+```bash
+ticktick projects list --json
+```
+
+## Quick Start
+
+```bash
+# List projects
+ticktick projects list
+
+# Create a task in inbox/current project
+ticktick tasks add "Buy coffee" --priority medium
+
+# Mark task complete
+ticktick tasks done TASK_ID
+
+# Show full sync payload (raw account state)
+ticktick sync --json
 ```
 
 ## Global Usage
@@ -34,44 +87,81 @@ ticktick --version
 ticktick --json <command>
 ```
 
-`--json` is supported on data commands and produces machine-friendly output.
+Notes:
+- `--json` is supported on data commands.
+- `auth` and `server` accept `--json` for consistency, but output remains
+  interactive/text-oriented.
 
-## Core Commands
+## Top-Level Commands
+
+```bash
+ticktick server [--enabledTools CSV] [--enabledModules CSV] [--host ticktick.com|dida365.com]
+ticktick auth [--manual]
+ticktick sync [--json]
+
+ticktick tasks <action> ...
+ticktick projects <action> ...
+ticktick folders <action> ...
+ticktick columns <action> ...
+ticktick tags <action> ...
+ticktick habits <action> ...
+ticktick user <action> ...
+ticktick focus <action> ...
+```
+
+## Command Reference
+
+### Server
 
 ```bash
 ticktick server
-ticktick server --host ticktick.com
 ticktick server --enabledModules tasks,projects
 ticktick server --enabledTools ticktick_list_tasks,ticktick_create_tasks
-
-ticktick auth
-ticktick auth --manual
-ticktick sync --json
+ticktick server --host ticktick.com
 ```
 
-## Task Commands
-
-### Read and Query
+### Auth
 
 ```bash
-ticktick tasks list [--project PROJECT_ID] [--due YYYY-MM-DD]
-ticktick tasks get TASK_ID [--project PROJECT_ID]
-ticktick tasks search QUERY [--project PROJECT_ID]
-ticktick tasks by-tag TAG [--project PROJECT_ID]
-ticktick tasks by-priority PRIORITY [--project PROJECT_ID]
-ticktick tasks today [--project PROJECT_ID]
-ticktick tasks overdue [--project PROJECT_ID]
-ticktick tasks completed [--days N] [--limit N] [--project PROJECT_ID]
-ticktick tasks abandoned [--days N] [--limit N] [--project PROJECT_ID]
-ticktick tasks deleted [--limit N] [--project PROJECT_ID]
+ticktick auth
+ticktick auth --manual
+```
+
+### Sync
+
+```bash
+ticktick sync [--json]
+```
+
+Returns the raw full-account sync payload (`checkPoint`, projects, tags,
+ordering blocks, task deltas, and more). Useful for diagnostics and backup-like
+inspection.
+
+### Tasks
+
+#### Read and Query
+
+```bash
+ticktick tasks list [--project PROJECT_ID] [--due YYYY-MM-DD] [--json]
+ticktick tasks get TASK_ID [--project PROJECT_ID] [--json]
+ticktick tasks search QUERY [--project PROJECT_ID] [--json]
+ticktick tasks by-tag TAG_NAME [--project PROJECT_ID] [--json]
+ticktick tasks by-priority PRIORITY [--project PROJECT_ID] [--json]
+ticktick tasks today [--project PROJECT_ID] [--json]
+ticktick tasks overdue [--project PROJECT_ID] [--json]
+ticktick tasks completed [--days N] [--limit N] [--project PROJECT_ID] [--json]
+ticktick tasks abandoned [--days N] [--limit N] [--project PROJECT_ID] [--json]
+ticktick tasks deleted [--limit N] [--project PROJECT_ID] [--json]
 ```
 
 `PRIORITY` accepts `none|low|medium|high|0|1|3|5`.
+`--content` is task note/body text. `--description` maps to TickTick checklist
+description field (`desc` in API payloads).
 
-### Create
+#### Create
 
 ```bash
-ticktick tasks add "Title" \
+ticktick tasks add TITLE \
   [--project PROJECT_ID] \
   [--content TEXT] \
   [--description TEXT] \
@@ -84,21 +174,13 @@ ticktick tasks add "Title" \
   [--time-zone IANA_TZ] \
   [--all-day|--timed] \
   [--parent PARENT_TASK_ID] \
-  [--reminders TRIGGER_1,TRIGGER_2]
+  [--reminders TRIGGER_1,TRIGGER_2] \
+  [--json]
 
-ticktick tasks quick-add "Quick task title" [--project PROJECT_ID]
+ticktick tasks quick-add TEXT [--project PROJECT_ID] [--json]
 ```
 
-Examples:
-
-```bash
-ticktick tasks add "Pay rent" --due 2026-03-01 --priority high
-ticktick tasks add "Write draft" --content "Outline + first pass"
-ticktick tasks add "Standup notes" --kind NOTE --tags work,team
-ticktick tasks quick-add "Buy coffee beans"
-```
-
-### Update and Lifecycle
+#### Update and Lifecycle
 
 ```bash
 ticktick tasks update TASK_ID \
@@ -113,42 +195,41 @@ ticktick tasks update TASK_ID \
   [--tags tag1,tag2|--clear-tags] \
   [--recurrence RRULE|--clear-recurrence] \
   [--time-zone IANA_TZ] \
-  [--all-day|--timed]
+  [--all-day|--timed] \
+  [--json]
 
-ticktick tasks done TASK_ID [--project PROJECT_ID]
-ticktick tasks abandon TASK_ID [--project PROJECT_ID]
-ticktick tasks delete TASK_ID [--project PROJECT_ID]
+ticktick tasks done TASK_ID [--project PROJECT_ID] [--json]
+ticktick tasks abandon TASK_ID [--project PROJECT_ID] [--json]
+ticktick tasks delete TASK_ID [--project PROJECT_ID] [--json]
 ```
 
-### Move, Parenting, and Pinning
+#### Move, Hierarchy, Pinning, Columns
 
 ```bash
-ticktick tasks move TASK_ID --to-project PROJECT_ID [--from-project PROJECT_ID]
-ticktick tasks subtask TASK_ID --parent PARENT_TASK_ID [--project PROJECT_ID]
-ticktick tasks unparent TASK_ID [--project PROJECT_ID]
-ticktick tasks pin TASK_ID [--project PROJECT_ID]
-ticktick tasks unpin TASK_ID [--project PROJECT_ID]
-ticktick tasks column TASK_ID [--project PROJECT_ID] (--column COLUMN_ID | --clear-column)
+ticktick tasks move TASK_ID --to-project PROJECT_ID [--from-project PROJECT_ID] [--json]
+ticktick tasks subtask TASK_ID --parent PARENT_TASK_ID [--project PROJECT_ID] [--json]
+ticktick tasks unparent TASK_ID [--project PROJECT_ID] [--json]
+ticktick tasks pin TASK_ID [--project PROJECT_ID] [--json]
+ticktick tasks unpin TASK_ID [--project PROJECT_ID] [--json]
+ticktick tasks column TASK_ID [--project PROJECT_ID] (--column COLUMN_ID | --clear-column) [--json]
 ```
 
-## Batch Task Commands
-
-All batch commands read JSON arrays from `--file`.
+#### Batch Operations
 
 ```bash
-ticktick tasks batch-create --file tasks_create.json
-ticktick tasks batch-update --file tasks_update.json
-ticktick tasks batch-delete --file tasks_delete.json
-ticktick tasks batch-done --file tasks_complete.json
-ticktick tasks batch-move --file tasks_move.json
-ticktick tasks batch-parent --file tasks_parent.json
-ticktick tasks batch-unparent --file tasks_unparent.json
-ticktick tasks batch-pin --file tasks_pin.json
+ticktick tasks batch-create --file tasks_create.json [--json]
+ticktick tasks batch-update --file tasks_update.json [--json]
+ticktick tasks batch-delete --file tasks_delete.json [--json]
+ticktick tasks batch-done --file tasks_complete.json [--json]
+ticktick tasks batch-move --file tasks_move.json [--json]
+ticktick tasks batch-parent --file tasks_parent.json [--json]
+ticktick tasks batch-unparent --file tasks_unparent.json [--json]
+ticktick tasks batch-pin --file tasks_pin.json [--json]
 ```
 
-### Batch File Formats
+Batch payload formats:
 
-`batch-create` expects an array of objects (`title` required):
+`batch-create`:
 
 ```json
 [
@@ -163,7 +244,7 @@ ticktick tasks batch-pin --file tasks_pin.json
 ]
 ```
 
-`batch-update` expects objects with `task_id` and `project_id`:
+`batch-update`:
 
 ```json
 [
@@ -176,7 +257,7 @@ ticktick tasks batch-pin --file tasks_pin.json
 ]
 ```
 
-`batch-delete` and `batch-done` accept either format:
+`batch-delete` and `batch-done` (either format accepted):
 
 ```json
 [
@@ -232,81 +313,67 @@ ticktick tasks batch-pin --file tasks_pin.json
 ]
 ```
 
-## Project Commands
+### Projects
 
 ```bash
-ticktick projects list
-ticktick projects get PROJECT_ID
-ticktick projects data PROJECT_ID
+ticktick projects list [--json]
+ticktick projects get PROJECT_ID [--json]
+ticktick projects data PROJECT_ID [--json]
 
-ticktick projects create "New Project" \
+ticktick projects create NAME \
   [--color #F18181] \
   [--kind TASK|NOTE] \
   [--view list|kanban|timeline] \
-  [--folder FOLDER_ID]
+  [--folder FOLDER_ID] \
+  [--json]
 
 ticktick projects update PROJECT_ID \
-  [--name "Renamed"] \
+  [--name NEW_NAME] \
   [--color #57A8FF] \
-  [--folder FOLDER_ID | --remove-folder]
+  [--folder FOLDER_ID | --remove-folder] \
+  [--json]
 
-ticktick projects delete PROJECT_ID
+ticktick projects delete PROJECT_ID [--json]
 ```
 
-## Folder Commands
+### Folders
 
 ```bash
-ticktick folders list
-ticktick folders create "Personal"
-ticktick folders rename FOLDER_ID "Renamed Folder"
-ticktick folders delete FOLDER_ID
+ticktick folders list [--json]
+ticktick folders create NAME [--json]
+ticktick folders rename FOLDER_ID NAME [--json]
+ticktick folders delete FOLDER_ID [--json]
 ```
 
-## Column Commands
+### Columns
 
 ```bash
-ticktick columns list --project PROJECT_ID
-ticktick columns create --project PROJECT_ID "Backlog" [--sort N]
-ticktick columns update COLUMN_ID --project PROJECT_ID [--name "Doing"] [--sort N]
-ticktick columns delete COLUMN_ID --project PROJECT_ID
+ticktick columns list --project PROJECT_ID [--json]
+ticktick columns create --project PROJECT_ID NAME [--sort N] [--json]
+ticktick columns update COLUMN_ID --project PROJECT_ID [--name NAME] [--sort N] [--json]
+ticktick columns delete COLUMN_ID --project PROJECT_ID [--json]
 ```
 
-## Tag Commands
+### Tags
 
 ```bash
-ticktick tags list
-ticktick tags create TAG_NAME [--color #57A8FF] [--parent PARENT_TAG]
-ticktick tags update TAG_NAME [--color #F18181] [--parent PARENT_TAG | --clear-parent]
-ticktick tags rename OLD_NAME NEW_NAME
-ticktick tags merge SOURCE_TAG TARGET_TAG
-ticktick tags delete TAG_NAME
+ticktick tags list [--json]
+ticktick tags create NAME [--color #57A8FF] [--parent PARENT_TAG] [--json]
+ticktick tags update NAME [--color #F18181] [--parent PARENT_TAG | --clear-parent] [--json]
+ticktick tags rename OLD_NAME NEW_NAME [--json]
+ticktick tags merge SOURCE TARGET [--json]
+ticktick tags delete NAME [--json]
 ```
 
-## User Commands
+### Habits
 
 ```bash
-ticktick user profile
-ticktick user status
-ticktick user statistics
-ticktick user preferences
-```
+ticktick habits list [--json]
+ticktick habits get HABIT_ID [--json]
+ticktick habits sections [--json]
+ticktick habits preferences [--json]
 
-## Focus Commands
-
-```bash
-ticktick focus heatmap [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N]
-ticktick focus by-tag [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N]
-```
-
-## Habit Commands
-
-```bash
-ticktick habits list
-ticktick habits get HABIT_ID
-ticktick habits sections
-ticktick habits preferences
-
-ticktick habits create "Drink Water" \
+ticktick habits create NAME \
   [--type Boolean|Real] \
   [--goal 1.0] \
   [--step 0.0] \
@@ -315,47 +382,94 @@ ticktick habits create "Drink Water" \
   [--color #97E38B] \
   [--section SECTION_ID] \
   [--repeat RRULE] \
-  [--reminders 08:00,20:00] \
-  [--target-days 30] \
-  [--encouragement "Keep going"]
+  [--reminders HH:MM,HH:MM] \
+  [--target-days N] \
+  [--encouragement TEXT] \
+  [--json]
 
-ticktick habits update HABIT_ID [--name ...] [--goal ...] [--step ...] [--unit ...] [--icon ...] [--color ...] [--section ...] [--repeat ...] [--reminders ...] [--target-days ...] [--encouragement ...]
-ticktick habits delete HABIT_ID
+ticktick habits update HABIT_ID \
+  [--name TEXT] \
+  [--goal FLOAT] \
+  [--step FLOAT] \
+  [--unit TEXT] \
+  [--icon TEXT] \
+  [--color HEX] \
+  [--section SECTION_ID] \
+  [--repeat RRULE] \
+  [--reminders HH:MM,HH:MM] \
+  [--target-days N] \
+  [--encouragement TEXT] \
+  [--json]
 
-ticktick habits checkin HABIT_ID [--value 1.0] [--date YYYY-MM-DD]
-ticktick habits batch-checkin --file checkins.json
-ticktick habits checkins HABIT_ID [HABIT_ID ...] [--after-stamp YYYYMMDD]
+ticktick habits delete HABIT_ID [--json]
 
-ticktick habits archive HABIT_ID
-ticktick habits unarchive HABIT_ID
+ticktick habits checkin HABIT_ID [--value FLOAT] [--date YYYY-MM-DD] [--json]
+ticktick habits batch-checkin --file checkins.json [--json]
+ticktick habits checkins HABIT_ID [HABIT_ID ...] [--after-stamp YYYYMMDD] [--json]
+
+ticktick habits archive HABIT_ID [--json]
+ticktick habits unarchive HABIT_ID [--json]
 ```
 
-## Project Resolution Rules
+`batch-checkin` file format:
+
+```json
+[
+  {
+    "habit_id": "HABIT_ID",
+    "value": 1.0,
+    "checkin_date": "2026-02-01"
+  }
+]
+```
+
+### User
+
+```bash
+ticktick user profile [--json]
+ticktick user status [--json]
+ticktick user statistics [--json]
+ticktick user preferences [--json]
+```
+
+### Focus
+
+```bash
+ticktick focus heatmap [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N] [--json]
+ticktick focus by-tag [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N] [--json]
+```
+
+## Command Behavior Notes
+
+### Project Resolution
 
 When a task command needs project context and `--project` is omitted:
 
-1. For commands that operate on an existing task (`done`, `abandon`, `delete`,
-   `pin`, `unpin`, `column`, `update`, `subtask`, `unparent`, etc.), project is
-   auto-resolved from the task itself.
-2. For create/list-style commands, project resolves in this order:
+1. For existing-task operations (`done`, `abandon`, `delete`, `pin`, `unpin`,
+   `column`, `update`, `subtask`, `unparent`), project is auto-resolved from
+   the task.
+2. For create/list-style operations, project is resolved in this order:
    - explicit `--project`
    - `TICKTICK_CURRENT_PROJECT_ID`
    - account inbox project ID
 
-## Timezone
+### Date and Timezone
 
-Set `TZ` to an IANA timezone for due date parsing/filtering defaults:
+- `--due` and `--start` accept `YYYY-MM-DD` or ISO datetime.
+- `--from` and `--to` for focus commands use `YYYY-MM-DD`.
+- `TZ` environment variable controls local date interpretation.
+- `--time-zone` on task create/update can override stored timezone.
+
+Example:
 
 ```bash
 export TZ=America/New_York
 ticktick tasks list --due 2026-02-09
 ```
 
-You can override per-command storage timezone with `--time-zone`.
+## Environment Variables
 
-## Required Environment Variables
-
-These are read by `ticktick-sdk`:
+Required:
 
 - `TICKTICK_CLIENT_ID`
 - `TICKTICK_CLIENT_SECRET`
@@ -372,13 +486,24 @@ Optional:
 - `TICKTICK_CURRENT_PROJECT_ID`
 - `TZ`
 
+## Troubleshooting
+
+- `Error: missing credentials`:
+  Check `.env` contains all required variables.
+- OAuth flow issues:
+  Confirm your app redirect URI exactly matches `TICKTICK_REDIRECT_URI`.
+- Headless machine:
+  Use `ticktick auth --manual`.
+- Unexpected API host behavior:
+  Set `TICKTICK_HOST=ticktick.com` or `TICKTICK_HOST=dida365.com` explicitly.
+
 ## Development
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-pytest
+.venv/bin/pytest -q
 ```
 
 ## Build
@@ -387,3 +512,12 @@ pytest
 python3 -m pip install build
 python3 -m build
 ```
+
+## Credits
+
+This CLI is powered by and depends on
+[`ticktick-sdk`](https://github.com/dev-mirzabicer/ticktick-sdk).
+
+Thanks to the `ticktick-sdk` maintainers and contributors for the API,
+authentication, MCP server, and core client implementation that this project
+builds on.
