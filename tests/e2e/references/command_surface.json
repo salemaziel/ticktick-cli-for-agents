@@ -1,0 +1,93 @@
+{
+  "single_commands": [
+    "server",
+    "auth",
+    "sync"
+  ],
+  "group_commands": {
+    "tasks": [
+      "list",
+      "get",
+      "add",
+      "quick-add",
+      "update",
+      "done",
+      "abandon",
+      "delete",
+      "move",
+      "subtask",
+      "unparent",
+      "pin",
+      "unpin",
+      "column",
+      "search",
+      "by-tag",
+      "by-priority",
+      "today",
+      "overdue",
+      "completed",
+      "abandoned",
+      "deleted",
+      "batch-create",
+      "batch-update",
+      "batch-delete",
+      "batch-done",
+      "batch-move",
+      "batch-parent",
+      "batch-unparent",
+      "batch-pin"
+    ],
+    "projects": [
+      "list",
+      "get",
+      "data",
+      "create",
+      "update",
+      "delete"
+    ],
+    "folders": [
+      "list",
+      "create",
+      "rename",
+      "delete"
+    ],
+    "columns": [
+      "list",
+      "create",
+      "update",
+      "delete"
+    ],
+    "tags": [
+      "list",
+      "create",
+      "update",
+      "rename",
+      "delete",
+      "merge"
+    ],
+    "user": [
+      "profile",
+      "status",
+      "statistics",
+      "preferences"
+    ],
+    "focus": [
+      "heatmap",
+      "by-tag"
+    ],
+    "habits": [
+      "list",
+      "get",
+      "sections",
+      "preferences",
+      "create",
+      "update",
+      "delete",
+      "checkin",
+      "batch-checkin",
+      "archive",
+      "unarchive",
+      "checkins"
+    ]
+  }
+}

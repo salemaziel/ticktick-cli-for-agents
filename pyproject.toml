@@ -36,6 +36,7 @@ dependencies = [
 dev = [
   "pytest>=8.0.0",
   "pytest-asyncio>=0.23.0",
+  "jsonschema>=4.23.0",
 ]
 
 [project.scripts]
@@ -53,3 +54,6 @@ packages = ["src/ticktick_cli"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+  "e2e: live end-to-end CLI tests against a real TickTick account",
+]

@@ -1,0 +1,737 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "command_schemas": {
+    "sync": "sync_result",
+
+    "tasks list": "tasks_list_result",
+    "tasks get": "task_result",
+    "tasks add": "task_result",
+    "tasks quick-add": "task_result",
+    "tasks update": "task_result",
+    "tasks done": "tasks_action_result",
+    "tasks abandon": "tasks_action_result",
+    "tasks delete": "tasks_action_result",
+    "tasks move": "tasks_move_result",
+    "tasks subtask": "tasks_subtask_result",
+    "tasks unparent": "tasks_action_result",
+    "tasks pin": "action_task_result",
+    "tasks unpin": "action_task_result",
+    "tasks column": "action_task_result",
+    "tasks search": "tasks_query_result",
+    "tasks by-tag": "tasks_query_result",
+    "tasks by-priority": "tasks_query_result",
+    "tasks today": "tasks_query_result",
+    "tasks overdue": "tasks_query_result",
+    "tasks completed": "tasks_query_result",
+    "tasks abandoned": "tasks_query_result",
+    "tasks deleted": "tasks_query_result",
+    "tasks batch-create": "tasks_batch_create_result",
+    "tasks batch-update": "tasks_batch_action_result",
+    "tasks batch-delete": "tasks_batch_action_result",
+    "tasks batch-done": "tasks_batch_action_result",
+    "tasks batch-move": "tasks_batch_action_result",
+    "tasks batch-parent": "tasks_batch_action_result",
+    "tasks batch-unparent": "tasks_batch_action_result",
+    "tasks batch-pin": "tasks_batch_pin_result",
+
+    "projects list": "projects_list_result",
+    "projects get": "project_result",
+    "projects data": "project_data_result",
+    "projects create": "project_result",
+    "projects update": "project_result",
+    "projects delete": "project_action_result",
+
+    "folders list": "folders_list_result",
+    "folders create": "folder_result",
+    "folders rename": "folder_result",
+    "folders delete": "folder_action_result",
+
+    "columns list": "columns_list_result",
+    "columns create": "column_result",
+    "columns update": "column_result",
+    "columns delete": "column_action_result",
+
+    "tags list": "tags_list_result",
+    "tags create": "tag_result",
+    "tags update": "tag_result",
+    "tags rename": "tag_rename_result",
+    "tags delete": "tag_delete_result",
+    "tags merge": "tag_merge_result",
+
+    "user profile": "user_profile_result",
+    "user status": "user_status_result",
+    "user statistics": "user_statistics_result",
+    "user preferences": "user_preferences_result",
+
+    "focus heatmap": "focus_heatmap_result",
+    "focus by-tag": "focus_by_tag_result",
+
+    "habits list": "habits_list_result",
+    "habits get": "habit_get_result",
+    "habits sections": "habit_sections_result",
+    "habits preferences": "habit_preferences_result",
+    "habits create": "habit_success_result",
+    "habits update": "habit_success_result",
+    "habits delete": "habit_action_result",
+    "habits checkin": "habit_success_result",
+    "habits batch-checkin": "habit_batch_checkin_result",
+    "habits archive": "habit_success_result",
+    "habits unarchive": "habit_success_result",
+    "habits checkins": "habit_checkins_result"
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "required": [
+        "id",
+        "project_id",
+        "title",
+        "content",
+        "description",
+        "kind",
+        "status",
+        "status_label",
+        "priority",
+        "priority_label",
+        "start_date",
+        "start_local",
+        "due_date",
+        "due_local",
+        "tags",
+        "parent_id",
+        "column_id",
+        "time_zone",
+        "pinned_time",
+        "is_all_day"
+      ],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "project_id": { "type": ["string", "null"] },
+        "title": { "type": ["string", "null"] },
+        "content": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "kind": { "type": ["string", "null"] },
+        "status": { "type": "integer" },
+        "status_label": { "type": "string" },
+        "priority": { "type": "integer" },
+        "priority_label": { "type": "string" },
+        "start_date": { "type": ["string", "null"] },
+        "start_local": { "type": ["string", "null"] },
+        "due_date": { "type": ["string", "null"] },
+        "due_local": { "type": ["string", "null"] },
+        "tags": { "type": "array" },
+        "parent_id": { "type": ["string", "null"] },
+        "column_id": { "type": ["string", "null"] },
+        "time_zone": { "type": ["string", "null"] },
+        "pinned_time": { "type": ["string", "null"] },
+        "is_all_day": { "type": ["boolean", "null"] }
+      },
+      "additionalProperties": true
+    },
+
+    "project": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "color",
+        "folder_id",
+        "kind",
+        "view_mode",
+        "sort_option",
+        "sort_order",
+        "sort_type",
+        "closed",
+        "muted",
+        "permission",
+        "is_current"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "color": { "type": ["string", "null"] },
+        "folder_id": { "type": ["string", "null"] },
+        "kind": { "type": ["string", "null"] },
+        "view_mode": { "type": ["string", "null"] },
+        "sort_option": { "type": ["string", "null"] },
+        "sort_order": { "type": ["integer", "null"] },
+        "sort_type": { "type": ["string", "null"] },
+        "closed": { "type": "boolean" },
+        "muted": { "type": "boolean" },
+        "permission": { "type": ["string", "null"] },
+        "is_current": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+
+    "column": {
+      "type": "object",
+      "required": [
+        "id",
+        "project_id",
+        "name",
+        "sort_order",
+        "created_time",
+        "modified_time"
+      ],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "project_id": { "type": ["string", "null"] },
+        "name": { "type": ["string", "null"] },
+        "sort_order": { "type": ["integer", "null"] },
+        "created_time": { "type": ["string", "null"] },
+        "modified_time": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+
+    "folder": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "view_mode",
+        "sort_option",
+        "sort_order",
+        "sort_type",
+        "deleted",
+        "show_all",
+        "team_id",
+        "user_id"
+      ],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "name": { "type": ["string", "null"] },
+        "view_mode": { "type": ["string", "null"] },
+        "sort_option": { "type": ["string", "null"] },
+        "sort_order": { "type": ["integer", "string", "null"] },
+        "sort_type": { "type": ["string", "null"] },
+        "deleted": { "type": ["boolean", "integer", "null"] },
+        "show_all": { "type": ["boolean", "integer", "null"] },
+        "team_id": { "type": ["string", "integer", "null"] },
+        "user_id": { "type": ["string", "integer", "null"] }
+      },
+      "additionalProperties": true
+    },
+
+    "tag": {
+      "type": "object",
+      "required": [
+        "name",
+        "label",
+        "raw_name",
+        "color",
+        "parent",
+        "sort_option",
+        "sort_type",
+        "sort_order",
+        "type"
+      ],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "label": { "type": ["string", "null"] },
+        "raw_name": { "type": ["string", "null"] },
+        "color": { "type": ["string", "null"] },
+        "parent": { "type": ["string", "null"] },
+        "sort_option": { "type": ["string", "null"] },
+        "sort_type": { "type": ["string", "null"] },
+        "sort_order": { "type": ["integer", "null"] },
+        "type": { "type": ["integer", "string", "null"] }
+      },
+      "additionalProperties": true
+    },
+
+    "habit": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "sync_result": {
+      "type": "object",
+      "required": ["sync"],
+      "properties": {
+        "sync": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+
+    "tasks_list_result": {
+      "type": "object",
+      "required": ["count", "project_id", "timezone", "filters", "tasks"],
+      "properties": {
+        "count": { "type": "integer" },
+        "project_id": { "type": ["string", "null"] },
+        "timezone": { "type": "string" },
+        "filters": {
+          "type": "object",
+          "required": ["due"],
+          "properties": {
+            "due": { "type": ["string", "null"] }
+          },
+          "additionalProperties": true
+        },
+        "tasks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/task" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "tasks_query_result": {
+      "type": "object",
+      "required": ["count", "project_id", "timezone", "tasks"],
+      "properties": {
+        "count": { "type": "integer" },
+        "project_id": { "type": ["string", "null"] },
+        "timezone": { "type": "string" },
+        "tasks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/task" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "task_result": {
+      "type": "object",
+      "required": ["success", "task"],
+      "properties": {
+        "success": { "const": true },
+        "task": { "$ref": "#/$defs/task" }
+      },
+      "additionalProperties": true
+    },
+
+    "action_task_result": {
+      "type": "object",
+      "required": ["success", "action", "task"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "type": "string" },
+        "task": { "$ref": "#/$defs/task" }
+      },
+      "additionalProperties": true
+    },
+
+    "tasks_action_result": {
+      "type": "object",
+      "required": ["success", "action", "task_id", "project_id"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "type": "string" },
+        "task_id": { "type": "string" },
+        "project_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "tasks_move_result": {
+      "type": "object",
+      "required": ["success", "action", "task_id", "from_project_id", "to_project_id"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "move" },
+        "task_id": { "type": "string" },
+        "from_project_id": { "type": "string" },
+        "to_project_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "tasks_subtask_result": {
+      "type": "object",
+      "required": ["success", "action", "task_id", "project_id", "parent_id"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "subtask" },
+        "task_id": { "type": "string" },
+        "project_id": { "type": "string" },
+        "parent_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "tasks_batch_create_result": {
+      "type": "object",
+      "required": ["success", "count", "tasks"],
+      "properties": {
+        "success": { "const": true },
+        "count": { "type": "integer" },
+        "tasks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/task" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "tasks_batch_action_result": {
+      "type": "object",
+      "required": ["success", "action", "result"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "type": "string" },
+        "result": {}
+      },
+      "additionalProperties": true
+    },
+
+    "tasks_batch_pin_result": {
+      "type": "object",
+      "required": ["success", "action", "count", "tasks"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "batch-pin" },
+        "count": { "type": "integer" },
+        "tasks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/task" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "projects_list_result": {
+      "type": "object",
+      "required": ["count", "current_project_id", "projects"],
+      "properties": {
+        "count": { "type": "integer" },
+        "current_project_id": { "type": "string" },
+        "projects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/project" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "project_result": {
+      "type": "object",
+      "required": ["success", "project"],
+      "properties": {
+        "success": { "const": true },
+        "project": { "$ref": "#/$defs/project" }
+      },
+      "additionalProperties": true
+    },
+
+    "project_data_result": {
+      "type": "object",
+      "required": ["success", "timezone", "data"],
+      "properties": {
+        "success": { "const": true },
+        "timezone": { "type": "string" },
+        "data": {
+          "type": "object",
+          "required": ["project", "task_count", "column_count", "tasks", "columns"],
+          "properties": {
+            "project": { "$ref": "#/$defs/project" },
+            "task_count": { "type": "integer" },
+            "column_count": { "type": "integer" },
+            "tasks": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/task" }
+            },
+            "columns": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/column" }
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "project_action_result": {
+      "type": "object",
+      "required": ["success", "action", "project_id"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "delete" },
+        "project_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "folders_list_result": {
+      "type": "object",
+      "required": ["count", "folders"],
+      "properties": {
+        "count": { "type": "integer" },
+        "folders": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/folder" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "folder_result": {
+      "type": "object",
+      "required": ["success", "folder"],
+      "properties": {
+        "success": { "const": true },
+        "folder": { "$ref": "#/$defs/folder" }
+      },
+      "additionalProperties": true
+    },
+
+    "folder_action_result": {
+      "type": "object",
+      "required": ["success", "action", "folder_id"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "delete" },
+        "folder_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "columns_list_result": {
+      "type": "object",
+      "required": ["count", "project_id", "columns"],
+      "properties": {
+        "count": { "type": "integer" },
+        "project_id": { "type": "string" },
+        "columns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/column" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "column_result": {
+      "type": "object",
+      "required": ["success", "column"],
+      "properties": {
+        "success": { "const": true },
+        "column": { "$ref": "#/$defs/column" }
+      },
+      "additionalProperties": true
+    },
+
+    "column_action_result": {
+      "type": "object",
+      "required": ["success", "action", "column_id", "project_id"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "delete" },
+        "column_id": { "type": "string" },
+        "project_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "tags_list_result": {
+      "type": "object",
+      "required": ["count", "tags"],
+      "properties": {
+        "count": { "type": "integer" },
+        "tags": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/tag" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "tag_result": {
+      "type": "object",
+      "required": ["success", "tag"],
+      "properties": {
+        "success": { "const": true },
+        "tag": { "$ref": "#/$defs/tag" }
+      },
+      "additionalProperties": true
+    },
+
+    "tag_rename_result": {
+      "type": "object",
+      "required": ["success", "action", "old_name", "new_name"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "rename" },
+        "old_name": { "type": "string" },
+        "new_name": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "tag_delete_result": {
+      "type": "object",
+      "required": ["success", "action", "name"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "delete" },
+        "name": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "tag_merge_result": {
+      "type": "object",
+      "required": ["success", "action", "source", "target"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "merge" },
+        "source": { "type": "string" },
+        "target": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "user_profile_result": {
+      "type": "object",
+      "required": ["profile"],
+      "properties": {
+        "profile": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+
+    "user_status_result": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+
+    "user_statistics_result": {
+      "type": "object",
+      "required": ["statistics"],
+      "properties": {
+        "statistics": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+
+    "user_preferences_result": {
+      "type": "object",
+      "required": ["preferences"],
+      "properties": {
+        "preferences": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+
+    "focus_heatmap_result": {
+      "type": "object",
+      "required": ["from", "to", "days", "count", "heatmap"],
+      "properties": {
+        "from": { "type": ["string", "null"] },
+        "to": { "type": ["string", "null"] },
+        "days": { "type": "integer" },
+        "count": { "type": "integer" },
+        "heatmap": { "type": "array" }
+      },
+      "additionalProperties": true
+    },
+
+    "focus_by_tag_result": {
+      "type": "object",
+      "required": ["from", "to", "days", "tag_count", "focus_by_tag"],
+      "properties": {
+        "from": { "type": ["string", "null"] },
+        "to": { "type": ["string", "null"] },
+        "days": { "type": "integer" },
+        "tag_count": { "type": "integer" },
+        "focus_by_tag": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+
+    "habits_list_result": {
+      "type": "object",
+      "required": ["count", "habits"],
+      "properties": {
+        "count": { "type": "integer" },
+        "habits": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/habit" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "habit_get_result": {
+      "type": "object",
+      "required": ["habit"],
+      "properties": {
+        "habit": { "$ref": "#/$defs/habit" }
+      },
+      "additionalProperties": true
+    },
+
+    "habit_success_result": {
+      "type": "object",
+      "required": ["success", "habit"],
+      "properties": {
+        "success": { "const": true },
+        "habit": { "$ref": "#/$defs/habit" }
+      },
+      "additionalProperties": true
+    },
+
+    "habit_action_result": {
+      "type": "object",
+      "required": ["success", "action", "habit_id"],
+      "properties": {
+        "success": { "const": true },
+        "action": { "const": "delete" },
+        "habit_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "habit_sections_result": {
+      "type": "object",
+      "required": ["count", "sections"],
+      "properties": {
+        "count": { "type": "integer" },
+        "sections": { "type": "array" }
+      },
+      "additionalProperties": true
+    },
+
+    "habit_preferences_result": {
+      "type": "object",
+      "required": ["preferences"],
+      "properties": {
+        "preferences": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+
+    "habit_batch_checkin_result": {
+      "type": "object",
+      "required": ["success", "count", "result"],
+      "properties": {
+        "success": { "const": true },
+        "count": { "type": "integer" },
+        "result": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+
+    "habit_checkins_result": {
+      "type": "object",
+      "required": ["habit_count", "after_stamp", "checkins"],
+      "properties": {
+        "habit_count": { "type": "integer" },
+        "after_stamp": { "type": "integer" },
+        "checkins": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  }
+}
