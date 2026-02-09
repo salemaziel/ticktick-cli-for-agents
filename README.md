@@ -536,6 +536,33 @@ python3 -m pip install build
 python3 -m build
 ```
 
+## PyPI Release
+
+1. Bump version in `pyproject.toml`.
+2. Run release checks and build artifacts:
+
+```bash
+.venv/bin/pytest -q tests/test_cli.py
+python3 -m build
+.venv/bin/twine check dist/*
+```
+
+3. (Optional) Upload to TestPyPI:
+
+```bash
+TWINE_USERNAME=__token__ \
+TWINE_PASSWORD=<testpypi-token> \
+.venv/bin/twine upload --repository testpypi dist/*
+```
+
+4. Upload to PyPI:
+
+```bash
+TWINE_USERNAME=__token__ \
+TWINE_PASSWORD=<pypi-token> \
+.venv/bin/twine upload dist/*
+```
+
 ## Acknowledgments
 
 - [TickTick](https://www.ticktick.com/) for providing the task platform and

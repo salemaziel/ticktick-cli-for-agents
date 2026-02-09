@@ -50,6 +50,15 @@ Issues = "https://github.com/flexoid/ticktick-cli/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/ticktick_cli"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+  "/README.md",
+  "/pyproject.toml",
+  "/.env.example",
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
