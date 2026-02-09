@@ -1,7 +1,6 @@
 # ticktick-cli
 
-A standalone command-line interface for TickTick, built on top of
-[`ticktick-sdk`](https://github.com/dev-mirzabicer/ticktick-sdk).
+A standalone command-line interface for TickTick.
 
 `ticktick-cli` gives you a scriptable interface for daily TickTick operations,
 including tasks, projects, folders, columns, tags, habits, user info, focus
@@ -88,6 +87,7 @@ ticktick --json <command>
 ```
 
 Notes:
+
 - `--json` is supported on data commands.
 - `auth` and `server` accept `--json` for consistency, but output remains
   interactive/text-oriented.
@@ -262,7 +262,7 @@ Batch payload formats:
 ```json
 [
   ["TASK_ID", "PROJECT_ID"],
-  {"task_id": "TASK_ID_2", "project_id": "PROJECT_ID_2"}
+  { "task_id": "TASK_ID_2", "project_id": "PROJECT_ID_2" }
 ]
 ```
 
@@ -536,11 +536,10 @@ python3 -m pip install build
 python3 -m build
 ```
 
-## Credits
+## Acknowledgments
 
-This CLI is powered by and depends on
-[`ticktick-sdk`](https://github.com/dev-mirzabicer/ticktick-sdk).
-
-Thanks to the `ticktick-sdk` maintainers and contributors for the API,
-authentication, MCP server, and core client implementation that this project
-builds on.
+- [TickTick](https://www.ticktick.com/) for providing the task platform and
+  developer APIs used by this CLI.
+- [`ticktick-sdk`](https://github.com/dev-mirzabicer/ticktick-sdk) for the API
+  integration, authentication flows, MCP server implementation, and core data
+  model/client foundation that powers `ticktick-cli`.
