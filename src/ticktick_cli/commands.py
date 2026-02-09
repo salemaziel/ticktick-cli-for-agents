@@ -537,6 +537,20 @@ def _folder_to_json(folder: Any) -> dict[str, Any]:
     }
 
 
+def _tag_to_json(tag: Any) -> dict[str, Any]:
+    return {
+        "name": getattr(tag, "name", None),
+        "label": getattr(tag, "label", None),
+        "raw_name": getattr(tag, "raw_name", None),
+        "color": getattr(tag, "color", None),
+        "parent": getattr(tag, "parent", None),
+        "sort_option": getattr(tag, "sort_option", None),
+        "sort_type": getattr(tag, "sort_type", None),
+        "sort_order": getattr(tag, "sort_order", None),
+        "type": getattr(tag, "type", None),
+    }
+
+
 def _print_task_list_pretty(
     tasks: list[Any],
     project_id: str | None,
@@ -708,6 +722,23 @@ def _print_columns_pretty(columns: list[Any], project_id: str) -> None:
             str(getattr(column, "sort_order", "") or "-"),
         ])
     _print_table(["ID", "Name", "Sort"], rows)
+
+
+def _print_tags_pretty(tags: list[Any]) -> None:
+    print(f"Tags ({len(tags)})")
+    if not tags:
+        print("No tags found.")
+        return
+
+    rows: list[list[str]] = []
+    for tag in tags:
+        rows.append([
+            str(getattr(tag, "name", "") or ""),
+            str(getattr(tag, "label", "") or ""),
+            str(getattr(tag, "color", "") or "-"),
+            str(getattr(tag, "parent", "") or "-"),
+        ])
+    _print_table(["Name", "Label", "Color", "Parent"], rows)
 
 
 def _task_sort_key(task: Any, tz: tzinfo) -> tuple[bool, str, int, str]:
@@ -1671,6 +1702,92 @@ async def _run_columns_command(client: Any, args: argparse.Namespace) -> int:
     raise ValueError(f"Unknown columns subcommand: {args.columns_command}")
 
 
+async def _run_tags_command(client: Any, args: argparse.Namespace) -> int:
+    json_output = bool(getattr(args, "json", False))
+
+    if args.tags_command == "list":
+        tags = await client.get_all_tags()
+        tags_sorted = sorted(tags, key=lambda tag: str(getattr(tag, "name", "")).casefold())
+        if json_output:
+            _print_json({
+                "count": len(tags_sorted),
+                "tags": [_tag_to_json(tag) for tag in tags_sorted],
+            })
+        else:
+            _print_tags_pretty(tags_sorted)
+        return 0
+
+    if args.tags_command == "create":
+        tag = await client.create_tag(args.name, color=args.color, parent=args.parent)
+        if json_output:
+            _print_json({
+                "success": True,
+                "tag": _tag_to_json(tag),
+            })
+        else:
+            print(f"Tag created: {getattr(tag, 'name', '')}")
+            _print_tags_pretty([tag])
+        return 0
+
+    if args.tags_command == "update":
+        if args.parent is not None and args.clear_parent:
+            raise ValueError("Use either --parent or --clear-parent, not both.")
+        parent = None if args.clear_parent else args.parent
+        if args.color is None and args.parent is None and not args.clear_parent:
+            raise ValueError("No update fields provided.")
+
+        tag = await client.update_tag(args.name, color=args.color, parent=parent)
+        if json_output:
+            _print_json({
+                "success": True,
+                "tag": _tag_to_json(tag),
+            })
+        else:
+            print(f"Tag updated: {getattr(tag, 'name', args.name)}")
+            _print_tags_pretty([tag])
+        return 0
+
+    if args.tags_command == "rename":
+        await client.rename_tag(args.old_name, args.new_name)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "rename",
+                "old_name": args.old_name,
+                "new_name": args.new_name,
+            })
+        else:
+            print(f"Tag renamed: {args.old_name} -> {args.new_name}")
+        return 0
+
+    if args.tags_command == "delete":
+        await client.delete_tag(args.name)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "delete",
+                "name": args.name,
+            })
+        else:
+            print(f"Tag deleted: {args.name}")
+        return 0
+
+    if args.tags_command == "merge":
+        await client.merge_tags(args.source, args.target)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "merge",
+                "source": args.source,
+                "target": args.target,
+            })
+        else:
+            print(f"Merged tag {args.source} into {args.target}.")
+        return 0
+
+    raise ValueError(f"Unknown tags subcommand: {args.tags_command}")
+
+
 async def run_data_cli(args: argparse.Namespace) -> int:
     """Run task/project CLI commands."""
     _apply_v2_auth_rate_limit_workaround()
@@ -1688,6 +1805,8 @@ async def run_data_cli(args: argparse.Namespace) -> int:
                 return await _run_folders_command(client, args)
             if args.command == "columns":
                 return await _run_columns_command(client, args)
+            if args.command == "tags":
+                return await _run_tags_command(client, args)
 
             raise ValueError(f"Unsupported command for data CLI: {args.command}")
 

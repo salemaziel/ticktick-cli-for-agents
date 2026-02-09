@@ -792,4 +792,67 @@ Examples:
     columns_delete_parser.add_argument("--project", dest="project_id", required=True, help="Project ID")
     _add_json_argument(columns_delete_parser, help_text="Output result as JSON.")
 
+    tags_parser = subparsers.add_parser(
+        "tags",
+        help="Manage tags",
+        description="Tag management commands.",
+    )
+    tags_subparsers = tags_parser.add_subparsers(
+        dest="tags_command",
+        metavar="<action>",
+        required=True,
+    )
+
+    tags_list_parser = tags_subparsers.add_parser(
+        "list",
+        help="List tags",
+    )
+    _add_json_argument(tags_list_parser, help_text="Output tags as JSON.")
+
+    tags_create_parser = tags_subparsers.add_parser(
+        "create",
+        help="Create a tag",
+    )
+    tags_create_parser.add_argument("name", type=str, help="Tag name")
+    tags_create_parser.add_argument("--color", type=str, default=None, help="Hex color.")
+    tags_create_parser.add_argument("--parent", type=str, default=None, help="Parent tag name.")
+    _add_json_argument(tags_create_parser, help_text="Output created tag as JSON.")
+
+    tags_update_parser = tags_subparsers.add_parser(
+        "update",
+        help="Update a tag",
+    )
+    tags_update_parser.add_argument("name", type=str, help="Tag name")
+    tags_update_parser.add_argument("--color", type=str, default=None, help="New hex color.")
+    tags_update_parser.add_argument("--parent", type=str, default=None, help="New parent tag name.")
+    tags_update_parser.add_argument(
+        "--clear-parent",
+        action="store_true",
+        help="Remove parent from this tag.",
+    )
+    _add_json_argument(tags_update_parser, help_text="Output updated tag as JSON.")
+
+    tags_rename_parser = tags_subparsers.add_parser(
+        "rename",
+        help="Rename a tag",
+    )
+    tags_rename_parser.add_argument("old_name", type=str, help="Current tag name")
+    tags_rename_parser.add_argument("new_name", type=str, help="New tag name")
+    _add_json_argument(tags_rename_parser, help_text="Output result as JSON.")
+
+    tags_delete_parser = tags_subparsers.add_parser(
+        "delete",
+        help="Delete a tag",
+    )
+    tags_delete_parser.add_argument("name", type=str, help="Tag name")
+    _add_json_argument(tags_delete_parser, help_text="Output result as JSON.")
+
+    tags_merge_parser = tags_subparsers.add_parser(
+        "merge",
+        help="Merge source tag into target tag",
+    )
+    tags_merge_parser.add_argument("source", type=str, help="Source tag name")
+    tags_merge_parser.add_argument("target", type=str, help="Target tag name")
+    _add_json_argument(tags_merge_parser, help_text="Output result as JSON.")
+
     return parser

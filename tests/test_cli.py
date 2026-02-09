@@ -14,8 +14,9 @@ from ticktick_cli.commands import (
     _patch_v2_session_handler_for_429,
     _run_projects_command,
     _run_tasks_command,
+    _run_tags_command,
 )
-from ticktick_sdk.models import Column, Project, ProjectData, ProjectGroup, Task
+from ticktick_sdk.models import Column, Project, ProjectData, ProjectGroup, Tag, Task
 
 
 class _Status:
@@ -69,6 +70,13 @@ class _FakeClient:
         self.create_column_calls: list[dict] = []
         self.update_column_calls: list[dict] = []
         self.delete_column_calls: list[tuple[str, str]] = []
+        self._tags: list[Tag] = []
+        self._tags_by_name: dict[str, Tag] = {}
+        self.create_tag_calls: list[dict] = []
+        self.update_tag_calls: list[dict] = []
+        self.delete_tag_calls: list[str] = []
+        self.rename_tag_calls: list[tuple[str, str]] = []
+        self.merge_tags_calls: list[tuple[str, str]] = []
 
     async def get_all_tasks(self) -> list[Task]:
         return self._tasks
@@ -406,6 +414,64 @@ class _FakeClient:
         self.delete_column_calls.append((column_id, project_id))
         columns = self._columns_by_project.setdefault(project_id, [])
         self._columns_by_project[project_id] = [col for col in columns if col.id != column_id]
+
+    async def get_all_tags(self) -> list[Tag]:
+        return self._tags
+
+    async def create_tag(
+        self,
+        name: str,
+        *,
+        color: str | None = None,
+        parent: str | None = None,
+    ) -> Tag:
+        self.create_tag_calls.append({
+            "name": name,
+            "color": color,
+            "parent": parent,
+        })
+        tag = Tag(name=name, label=name, color=color, parent=parent)
+        self._tags_by_name[name] = tag
+        self._tags = list(self._tags_by_name.values())
+        return tag
+
+    async def update_tag(
+        self,
+        name: str,
+        *,
+        color: str | None = None,
+        parent: str | None = None,
+    ) -> Tag:
+        self.update_tag_calls.append({
+            "name": name,
+            "color": color,
+            "parent": parent,
+        })
+        tag = self._tags_by_name[name]
+        if color is not None:
+            tag.color = color
+        tag.parent = parent
+        self._tags_by_name[name] = tag
+        self._tags = list(self._tags_by_name.values())
+        return tag
+
+    async def delete_tag(self, name: str) -> None:
+        self.delete_tag_calls.append(name)
+        self._tags_by_name.pop(name, None)
+        self._tags = list(self._tags_by_name.values())
+
+    async def rename_tag(self, old_name: str, new_name: str) -> None:
+        self.rename_tag_calls.append((old_name, new_name))
+        tag = self._tags_by_name.pop(old_name)
+        tag.name = new_name
+        tag.label = new_name
+        self._tags_by_name[new_name] = tag
+        self._tags = list(self._tags_by_name.values())
+
+    async def merge_tags(self, source: str, target: str) -> None:
+        self.merge_tags_calls.append((source, target))
+        self._tags_by_name.pop(source, None)
+        self._tags = list(self._tags_by_name.values())
 
 
 @pytest.mark.asyncio
@@ -943,6 +1009,101 @@ async def test_columns_create_list_update_delete_flow(capsys) -> None:
     assert delete_output["success"] is True
     assert delete_output["action"] == "delete"
     assert client.delete_column_calls == [(column_id, project_id)]
+
+
+@pytest.mark.asyncio
+async def test_tags_full_lifecycle_flow(capsys) -> None:
+    client = _FakeClient()
+
+    create_args = Namespace(
+        command="tags",
+        tags_command="create",
+        name="work",
+        color="#ff0000",
+        parent=None,
+        json=True,
+    )
+    create_exit = await _run_tags_command(client, create_args)
+    assert create_exit == 0
+    create_output = json.loads(capsys.readouterr().out)
+    assert create_output["success"] is True
+    assert create_output["tag"]["name"] == "work"
+
+    list_args = Namespace(
+        command="tags",
+        tags_command="list",
+        json=True,
+    )
+    list_exit = await _run_tags_command(client, list_args)
+    assert list_exit == 0
+    list_output = json.loads(capsys.readouterr().out)
+    assert list_output["count"] == 1
+    assert list_output["tags"][0]["name"] == "work"
+
+    update_args = Namespace(
+        command="tags",
+        tags_command="update",
+        name="work",
+        color="#00ff00",
+        parent="root",
+        clear_parent=False,
+        json=True,
+    )
+    update_exit = await _run_tags_command(client, update_args)
+    assert update_exit == 0
+    update_output = json.loads(capsys.readouterr().out)
+    assert update_output["tag"]["color"] == "#00ff00"
+    assert update_output["tag"]["parent"] == "root"
+
+    rename_args = Namespace(
+        command="tags",
+        tags_command="rename",
+        old_name="work",
+        new_name="work-renamed",
+        json=True,
+    )
+    rename_exit = await _run_tags_command(client, rename_args)
+    assert rename_exit == 0
+    rename_output = json.loads(capsys.readouterr().out)
+    assert rename_output["action"] == "rename"
+    assert rename_output["new_name"] == "work-renamed"
+
+    create_second_args = Namespace(
+        command="tags",
+        tags_command="create",
+        name="target",
+        color=None,
+        parent=None,
+        json=True,
+    )
+    create_second_exit = await _run_tags_command(client, create_second_args)
+    assert create_second_exit == 0
+    _ = capsys.readouterr().out
+
+    merge_args = Namespace(
+        command="tags",
+        tags_command="merge",
+        source="work-renamed",
+        target="target",
+        json=True,
+    )
+    merge_exit = await _run_tags_command(client, merge_args)
+    assert merge_exit == 0
+    merge_output = json.loads(capsys.readouterr().out)
+    assert merge_output["action"] == "merge"
+    assert client.merge_tags_calls == [("work-renamed", "target")]
+
+    delete_args = Namespace(
+        command="tags",
+        tags_command="delete",
+        name="target",
+        json=True,
+    )
+    delete_exit = await _run_tags_command(client, delete_args)
+    assert delete_exit == 0
+    delete_output = json.loads(capsys.readouterr().out)
+    assert delete_output["action"] == "delete"
+    assert client.delete_tag_calls == ["target"]
 
 
 @pytest.mark.asyncio

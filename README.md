@@ -14,7 +14,7 @@ and auth implementation.
 | Projects | Done | Full project lifecycle commands implemented |
 | Folders | Done | Folder (project group) lifecycle commands implemented |
 | Columns | Done | Kanban column lifecycle commands implemented |
-| Tags | Planned | Not yet implemented in CLI commands |
+| Tags | Done | Full tag lifecycle commands implemented |
 | Habits | Planned | Not yet implemented in CLI commands |
 | User | Planned | Not yet implemented in CLI commands |
 | Focus | Planned | Not yet implemented in CLI commands |
@@ -267,6 +267,17 @@ ticktick columns list --project PROJECT_ID
 ticktick columns create --project PROJECT_ID "Backlog" [--sort N]
 ticktick columns update COLUMN_ID --project PROJECT_ID [--name "Doing"] [--sort N]
 ticktick columns delete COLUMN_ID --project PROJECT_ID
+```
+
+## Tag Commands
+
+```bash
+ticktick tags list
+ticktick tags create TAG_NAME [--color #57A8FF] [--parent PARENT_TAG]
+ticktick tags update TAG_NAME [--color #F18181] [--parent PARENT_TAG | --clear-parent]
+ticktick tags rename OLD_NAME NEW_NAME
+ticktick tags merge SOURCE_TAG TARGET_TAG
+ticktick tags delete TAG_NAME
 ```
 
 ## Project Resolution Rules
