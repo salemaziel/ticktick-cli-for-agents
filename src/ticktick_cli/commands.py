@@ -326,6 +326,13 @@ def _parse_due_filter(value: str) -> date:
         raise ValueError(f"Invalid --due value '{value}'. Expected YYYY-MM-DD.") from exc
 
 
+def _parse_iso_date(value: str, *, flag_name: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"Invalid {flag_name} value '{value}'. Expected YYYY-MM-DD.") from exc
+
+
 def _parse_due_for_creation(value: str, tz: tzinfo) -> tuple[datetime, bool]:
     try:
         due_day = date.fromisoformat(value)
@@ -1854,6 +1861,60 @@ async def _run_user_command(client: Any, args: argparse.Namespace) -> int:
     raise ValueError(f"Unknown user subcommand: {args.user_command}")
 
 
+async def _run_focus_command(client: Any, args: argparse.Namespace) -> int:
+    json_output = bool(getattr(args, "json", False))
+    from_date = _parse_iso_date(args.from_date, flag_name="--from") if args.from_date else None
+    to_date = _parse_iso_date(args.to_date, flag_name="--to") if args.to_date else None
+
+    if args.focus_command == "heatmap":
+        heatmap = await client.get_focus_heatmap(
+            start_date=from_date,
+            end_date=to_date,
+            days=args.days,
+        )
+        payload = _as_jsonable(heatmap)
+        if json_output:
+            _print_json({
+                "from": from_date.isoformat() if from_date else None,
+                "to": to_date.isoformat() if to_date else None,
+                "days": args.days,
+                "count": len(payload),
+                "heatmap": payload,
+            })
+        else:
+            print(f"Focus heatmap points: {len(payload)}")
+            for item in payload:
+                item_dict = dict(item) if isinstance(item, dict) else {"value": item}
+                print(item_dict)
+        return 0
+
+    if args.focus_command == "by-tag":
+        by_tag = await client.get_focus_by_tag(
+            start_date=from_date,
+            end_date=to_date,
+            days=args.days,
+        )
+        payload = _as_jsonable(by_tag)
+        if json_output:
+            _print_json({
+                "from": from_date.isoformat() if from_date else None,
+                "to": to_date.isoformat() if to_date else None,
+                "days": args.days,
+                "tag_count": len(payload),
+                "focus_by_tag": payload,
+            })
+        else:
+            print(f"Focus by tag ({len(payload)})")
+            if not payload:
+                print("No focus data.")
+            else:
+                rows = [[str(tag), str(duration)] for tag, duration in sorted(payload.items())]
+                _print_table(["Tag", "Seconds"], rows)
+        return 0
+
+    raise ValueError(f"Unknown focus subcommand: {args.focus_command}")
+
+
 async def run_data_cli(args: argparse.Namespace) -> int:
     """Run task/project CLI commands."""
     _apply_v2_auth_rate_limit_workaround()
@@ -1875,6 +1936,8 @@ async def run_data_cli(args: argparse.Namespace) -> int:
                 return await _run_tags_command(client, args)
             if args.command == "user":
                 return await _run_user_command(client, args)
+            if args.command == "focus":
+                return await _run_focus_command(client, args)
 
             raise ValueError(f"Unsupported command for data CLI: {args.command}")
 

@@ -17,7 +17,7 @@ and auth implementation.
 | Tags | Done | Full tag lifecycle commands implemented |
 | Habits | Planned | Not yet implemented in CLI commands |
 | User | Done | Profile/status/statistics/preferences commands implemented |
-| Focus | Planned | Not yet implemented in CLI commands |
+| Focus | Done | Focus heatmap and tag analytics commands implemented |
 
 ## Installation
 
@@ -287,6 +287,13 @@ ticktick user profile
 ticktick user status
 ticktick user statistics
 ticktick user preferences
+```
+
+## Focus Commands
+
+```bash
+ticktick focus heatmap [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N]
+ticktick focus by-tag [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N]
 ```
 
 ## Project Resolution Rules

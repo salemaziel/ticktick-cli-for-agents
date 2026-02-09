@@ -10,6 +10,7 @@ import pytest
 
 from ticktick_cli.commands import (
     _run_columns_command,
+    _run_focus_command,
     _run_folders_command,
     _patch_v2_session_handler_for_429,
     _run_projects_command,
@@ -341,6 +342,27 @@ class _FakeClient:
 
     async def get_preferences(self) -> dict:
         return {"timeZone": "Europe/Warsaw", "weekStartDay": 1}
+
+    async def get_focus_heatmap(
+        self,
+        start_date=None,
+        end_date=None,
+        days: int = 30,
+    ) -> list[dict]:
+        del start_date, end_date, days
+        return [
+            {"date": "2026-02-01", "value": 2},
+            {"date": "2026-02-02", "value": 1},
+        ]
+
+    async def get_focus_by_tag(
+        self,
+        start_date=None,
+        end_date=None,
+        days: int = 30,
+    ) -> dict[str, int]:
+        del start_date, end_date, days
+        return {"work": 1500, "study": 2400}
 
     async def get_all_folders(self) -> list[ProjectGroup]:
         return self._folders
@@ -1140,6 +1162,45 @@ async def test_user_commands_return_json(capsys) -> None:
     assert await _run_user_command(client, preferences_args) == 0
     preferences_output = json.loads(capsys.readouterr().out)
     assert preferences_output["preferences"]["timeZone"] == "Europe/Warsaw"
+
+
+@pytest.mark.asyncio
+async def test_focus_commands_return_json() -> None:
+    client = _FakeClient()
+
+    heatmap_args = Namespace(
+        command="focus",
+        focus_command="heatmap",
+        from_date=None,
+        to_date=None,
+        days=14,
+        json=True,
+    )
+    by_tag_args = Namespace(
+        command="focus",
+        focus_command="by-tag",
+        from_date="2026-02-01",
+        to_date="2026-02-09",
+        days=14,
+        json=True,
+    )
+
+    from io import StringIO
+    import contextlib
+
+    with contextlib.redirect_stdout(StringIO()) as output:
+        heatmap_exit = await _run_focus_command(client, heatmap_args)
+    heatmap_payload = json.loads(output.getvalue())
+    assert heatmap_exit == 0
+    assert heatmap_payload["count"] == 2
+    assert heatmap_payload["days"] == 14
+
+    with contextlib.redirect_stdout(StringIO()) as output:
+        by_tag_exit = await _run_focus_command(client, by_tag_args)
+    by_tag_payload = json.loads(output.getvalue())
+    assert by_tag_exit == 0
+    assert by_tag_payload["tag_count"] == 2
+    assert by_tag_payload["focus_by_tag"]["work"] == 1500
 
 
 @pytest.mark.asyncio

@@ -890,4 +890,33 @@ Examples:
     )
     _add_json_argument(user_preferences_parser, help_text="Output preferences as JSON.")
 
+    focus_parser = subparsers.add_parser(
+        "focus",
+        help="Focus/Pomodoro analytics",
+        description="Focus statistics commands.",
+    )
+    focus_subparsers = focus_parser.add_subparsers(
+        dest="focus_command",
+        metavar="<action>",
+        required=True,
+    )
+
+    focus_heatmap_parser = focus_subparsers.add_parser(
+        "heatmap",
+        help="Get focus heatmap",
+    )
+    focus_heatmap_parser.add_argument("--from", dest="from_date", type=str, default=None, help="Start date (YYYY-MM-DD).")
+    focus_heatmap_parser.add_argument("--to", dest="to_date", type=str, default=None, help="End date (YYYY-MM-DD).")
+    focus_heatmap_parser.add_argument("--days", type=int, default=30, help="Days lookback when --from/--to not set.")
+    _add_json_argument(focus_heatmap_parser, help_text="Output heatmap data as JSON.")
+
+    focus_by_tag_parser = focus_subparsers.add_parser(
+        "by-tag",
+        help="Get focus durations grouped by tag",
+    )
+    focus_by_tag_parser.add_argument("--from", dest="from_date", type=str, default=None, help="Start date (YYYY-MM-DD).")
+    focus_by_tag_parser.add_argument("--to", dest="to_date", type=str, default=None, help="End date (YYYY-MM-DD).")
+    focus_by_tag_parser.add_argument("--days", type=int, default=30, help="Days lookback when --from/--to not set.")
+    _add_json_argument(focus_by_tag_parser, help_text="Output focus-by-tag data as JSON.")
+
     return parser
