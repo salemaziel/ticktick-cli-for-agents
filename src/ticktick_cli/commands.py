@@ -344,7 +344,100 @@ def _parse_due_for_creation(value: str, tz: tzinfo) -> tuple[datetime, bool]:
     return parsed, False
 
 
+def _parse_csv_list(value: str | None) -> list[str] | None:
+    if value is None:
+        return None
+    items = [item.strip() for item in value.split(",")]
+    result = [item for item in items if item]
+    return result or []
+
+
+def _parse_priority_value(value: str | int | None) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    normalized = value.strip().lower()
+    mapping = {"none": 0, "low": 1, "medium": 3, "high": 5}
+    if normalized in mapping:
+        return mapping[normalized]
+    try:
+        parsed = int(normalized)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid priority '{value}'. Use none/low/medium/high or 0/1/3/5."
+        ) from exc
+    if parsed not in {0, 1, 3, 5}:
+        raise ValueError(
+            f"Invalid priority '{value}'. Use none/low/medium/high or 0/1/3/5."
+        )
+    return parsed
+
+
+def _load_json_array_from_file(path: str) -> list[Any]:
+    try:
+        with open(path, encoding="utf-8") as file:
+            payload = json.load(file)
+    except FileNotFoundError as exc:
+        raise ValueError(f"JSON file not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in file '{path}': {exc}") from exc
+
+    if not isinstance(payload, list):
+        raise ValueError(f"Expected JSON array in file '{path}'.")
+    return payload
+
+
+def _filter_tasks_by_project(tasks: list[Any], project_id: str | None) -> list[Any]:
+    if not project_id:
+        return tasks
+    return [task for task in tasks if str(getattr(task, "project_id", "")) == project_id]
+
+
+def _print_task_details_pretty(task: Any, tz: tzinfo) -> None:
+    due_date = getattr(task, "due_date", None)
+    start_date = getattr(task, "start_date", None)
+    tags = list(getattr(task, "tags", []) or [])
+
+    print("Task")
+    print(f"ID: {getattr(task, 'id', '')}")
+    print(f"Project: {getattr(task, 'project_id', '')}")
+    print(f"Title: {getattr(task, 'title', '') or '(no title)'}")
+    print(f"Status: {_status_label(int(getattr(task, 'status', 0)))}")
+    print(f"Priority: {_priority_label(int(getattr(task, 'priority', 0)))}")
+    print(f"Start: {_format_due(start_date, tz)}")
+    print(f"Due: {_format_due(due_date, tz)}")
+    print(f"Pinned: {'yes' if getattr(task, 'pinned_time', None) else 'no'}")
+    if tags:
+        print(f"Tags: {', '.join(tags)}")
+    content = getattr(task, "content", None)
+    if content:
+        print(f"Content: {content}")
+    description = getattr(task, "desc", None)
+    if description:
+        print(f"Description: {description}")
+
+
+def _print_batch_result_pretty(action: str, response: Any) -> None:
+    if isinstance(response, dict):
+        id2etag = response.get("id2etag", {}) or {}
+        id2error = response.get("id2error", {}) or {}
+        print(f"{action}: {len(id2etag)} succeeded, {len(id2error)} failed")
+        if id2error:
+            for task_id, error in id2error.items():
+                print(f"- {task_id}: {error}")
+        return
+
+    if isinstance(response, list):
+        print(f"{action}: processed {len(response)} item(s).")
+        return
+
+    print(f"{action}: done")
+
+
 def _task_to_json(task: Any, tz: tzinfo) -> dict[str, Any]:
+    start_date = getattr(task, "start_date", None)
+    start_local = _datetime_in_timezone(start_date, tz) if start_date else None
     due_date = getattr(task, "due_date", None)
     due_local = _datetime_in_timezone(due_date, tz) if due_date else None
     status = int(getattr(task, "status", 0))
@@ -355,13 +448,24 @@ def _task_to_json(task: Any, tz: tzinfo) -> dict[str, Any]:
         "title": getattr(task, "title", None),
         "content": getattr(task, "content", None),
         "description": getattr(task, "desc", None),
+        "kind": getattr(task, "kind", None),
         "status": status,
         "status_label": _status_label(status),
         "priority": priority,
         "priority_label": _priority_label(priority),
+        "start_date": start_date.isoformat() if start_date else None,
+        "start_local": start_local.isoformat() if start_local else None,
         "due_date": due_date.isoformat() if due_date else None,
         "due_local": due_local.isoformat() if due_local else None,
         "tags": list(getattr(task, "tags", []) or []),
+        "parent_id": getattr(task, "parent_id", None),
+        "column_id": getattr(task, "column_id", None),
+        "time_zone": getattr(task, "time_zone", None),
+        "pinned_time": (
+            getattr(task, "pinned_time", None).isoformat()
+            if getattr(task, "pinned_time", None) is not None
+            else None
+        ),
         "is_all_day": getattr(task, "is_all_day", None),
     }
 
@@ -380,17 +484,22 @@ def _project_to_json(project: Any, current_project_id: str) -> dict[str, Any]:
 
 def _print_task_list_pretty(
     tasks: list[Any],
-    project_id: str,
+    project_id: str | None,
     due_filter: date | None,
     tz_name: str,
     tz: tzinfo,
+    *,
+    title: str = "Tasks",
+    show_project: bool = False,
 ) -> None:
-    filters = [f"project={project_id}"]
+    filters: list[str] = []
+    if project_id:
+        filters.append(f"project={project_id}")
     if due_filter is not None:
         filters.append(f"due={due_filter.isoformat()}")
     filters.append(f"tz={tz_name}")
 
-    print(f"Tasks ({len(tasks)})")
+    print(f"{title} ({len(tasks)})")
     print(f"Filters: {', '.join(filters)}")
 
     if not tasks:
@@ -403,15 +512,21 @@ def _print_task_list_pretty(
         due_date = getattr(task, "due_date", None)
         priority = int(getattr(task, "priority", 0))
         status = int(getattr(task, "status", 0))
-        rows.append([
+        row = [
             str(getattr(task, "id", "")),
             _truncate(title, 48),
             _format_due(due_date, tz),
             _priority_label(priority),
             _status_label(status),
-        ])
+        ]
+        if show_project:
+            row.insert(1, str(getattr(task, "project_id", "")))
+        rows.append(row)
 
-    _print_table(["ID", "Title", "Due", "Priority", "Status"], rows)
+    headers = ["ID", "Title", "Due", "Priority", "Status"]
+    if show_project:
+        headers.insert(1, "Project")
+    _print_table(headers, rows)
 
 
 def _print_created_task_pretty(task: Any, tz: tzinfo) -> None:
@@ -509,14 +624,15 @@ async def _abandon_task(client: Any, task_id: str, project_id: str) -> None:
 async def _run_tasks_command(client: Any, args: argparse.Namespace) -> int:
     tz, configured_tz_name = _get_cli_timezone()
     tz_display_name = configured_tz_name or "local"
+    json_output = bool(getattr(args, "json", False))
 
     if args.tasks_command == "list":
-        project_id = await _resolve_project_id(client, args.project_id)
+        project_id = await _resolve_project_id(client, getattr(args, "project_id", None))
         tasks = await client.get_all_tasks()
-        filtered = [task for task in tasks if str(getattr(task, "project_id", "")) == project_id]
+        filtered = _filter_tasks_by_project(tasks, project_id)
 
         due_filter: date | None = None
-        if args.due:
+        if getattr(args, "due", None):
             due_filter = _parse_due_filter(args.due)
             filtered = [
                 task for task in filtered
@@ -525,8 +641,8 @@ async def _run_tasks_command(client: Any, args: argparse.Namespace) -> int:
 
         filtered.sort(key=lambda task: _task_sort_key(task, tz))
 
-        if args.json:
-            payload = {
+        if json_output:
+            _print_json({
                 "count": len(filtered),
                 "project_id": project_id,
                 "timezone": tz_display_name,
@@ -534,76 +650,652 @@ async def _run_tasks_command(client: Any, args: argparse.Namespace) -> int:
                     "due": due_filter.isoformat() if due_filter else None,
                 },
                 "tasks": [_task_to_json(task, tz) for task in filtered],
-            }
-            _print_json(payload)
+            })
         else:
             _print_task_list_pretty(filtered, project_id, due_filter, tz_display_name, tz)
 
         return 0
 
+    if args.tasks_command == "get":
+        task_id = getattr(args, "task_id")
+        project_id = getattr(args, "project_id", None)
+        task = await client.get_task(task_id, project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "task": _task_to_json(task, tz),
+            })
+        else:
+            _print_task_details_pretty(task, tz)
+        return 0
+
     if args.tasks_command == "add":
-        project_id = await _resolve_project_id(client, args.project_id)
-
+        project_id = await _resolve_project_id(client, getattr(args, "project_id", None))
+        task_timezone = getattr(args, "time_zone", None) or _timezone_name_for_task(
+            tz,
+            configured_tz_name,
+        )
         due_date: datetime | None = None
+        start_date: datetime | None = None
         all_day: bool | None = None
-        task_timezone = _timezone_name_for_task(tz, configured_tz_name)
 
-        if args.due:
+        if getattr(args, "start", None):
+            start_date, _ = _parse_due_for_creation(args.start, tz)
+        if getattr(args, "due", None):
             due_date, all_day = _parse_due_for_creation(args.due, tz)
+        if getattr(args, "all_day", False):
+            all_day = True
+        if getattr(args, "timed", False):
+            all_day = False
+
+        tags = _parse_csv_list(getattr(args, "tags", None))
+        reminders = _parse_csv_list(getattr(args, "reminders", None))
+        kind = getattr(args, "kind", None)
+        normalized_kind = kind.upper() if isinstance(kind, str) else None
 
         created = await client.create_task(
             title=args.title,
             project_id=project_id,
-            content=args.content,
+            content=getattr(args, "content", None),
+            description=getattr(args, "description", None),
+            priority=getattr(args, "priority", None),
+            start_date=start_date,
             due_date=due_date,
-            all_day=all_day,
             time_zone=task_timezone,
-            priority=args.priority,
+            all_day=all_day,
+            reminders=reminders,
+            recurrence=getattr(args, "recurrence", None),
+            tags=tags,
+            parent_id=getattr(args, "parent_id", None),
         )
 
-        if args.json:
-            payload = {
+        if normalized_kind is not None and getattr(created, "kind", None) != normalized_kind:
+            created.kind = normalized_kind
+            created = await client.update_task(created)
+
+        if json_output:
+            _print_json({
                 "success": True,
                 "task": _task_to_json(created, tz),
-            }
-            _print_json(payload)
+            })
         else:
             _print_created_task_pretty(created, tz)
+        return 0
 
+    if args.tasks_command == "quick-add":
+        project_id = await _resolve_project_id(client, getattr(args, "project_id", None))
+        created = await client.quick_add(args.text, project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "task": _task_to_json(created, tz),
+            })
+        else:
+            _print_created_task_pretty(created, tz)
+        return 0
+
+    if args.tasks_command == "update":
+        if getattr(args, "start", None) and getattr(args, "clear_start", False):
+            raise ValueError("Use either --start or --clear-start, not both.")
+        if getattr(args, "due", None) and getattr(args, "clear_due", False):
+            raise ValueError("Use either --due or --clear-due, not both.")
+        if getattr(args, "tags", None) and getattr(args, "clear_tags", False):
+            raise ValueError("Use either --tags or --clear-tags, not both.")
+        if getattr(args, "recurrence", None) and getattr(args, "clear_recurrence", False):
+            raise ValueError("Use either --recurrence or --clear-recurrence, not both.")
+
+        project_id = await _resolve_task_project_id(client, args.task_id, getattr(args, "project_id", None))
+        task = await client.get_task(args.task_id, project_id)
+        explicit_time_zone = getattr(args, "time_zone", None)
+        task_timezone = explicit_time_zone or _timezone_name_for_task(
+            tz,
+            configured_tz_name,
+        )
+
+        changed = False
+        if getattr(args, "title", None) is not None:
+            task.title = args.title
+            changed = True
+        if getattr(args, "content", None) is not None:
+            task.content = args.content
+            changed = True
+        if getattr(args, "description", None) is not None:
+            task.desc = args.description
+            changed = True
+        if getattr(args, "kind", None) is not None:
+            task.kind = args.kind.upper()
+            changed = True
+        if getattr(args, "priority", None) is not None:
+            task.priority = _parse_priority_value(args.priority)
+            changed = True
+
+        if getattr(args, "start", None):
+            start_date, _ = _parse_due_for_creation(args.start, tz)
+            task.start_date = start_date
+            changed = True
+        if getattr(args, "clear_start", False):
+            task.start_date = None
+            changed = True
+
+        if getattr(args, "due", None):
+            due_date, all_day = _parse_due_for_creation(args.due, tz)
+            task.due_date = due_date
+            task.is_all_day = all_day
+            if task_timezone:
+                task.time_zone = task_timezone
+            changed = True
+        if getattr(args, "clear_due", False):
+            task.due_date = None
+            task.is_all_day = None
+            changed = True
+
+        if getattr(args, "all_day", False):
+            task.is_all_day = True
+            changed = True
+        if getattr(args, "timed", False):
+            task.is_all_day = False
+            changed = True
+
+        if getattr(args, "tags", None) is not None:
+            task.tags = _parse_csv_list(args.tags) or []
+            changed = True
+        if getattr(args, "clear_tags", False):
+            task.tags = []
+            changed = True
+
+        if getattr(args, "recurrence", None) is not None:
+            task.repeat_flag = args.recurrence
+            changed = True
+        if getattr(args, "clear_recurrence", False):
+            task.repeat_flag = None
+            changed = True
+
+        if explicit_time_zone is not None:
+            task.time_zone = explicit_time_zone
+            changed = True
+
+        if not changed:
+            raise ValueError("No update fields provided.")
+
+        updated = await client.update_task(task)
+        if json_output:
+            _print_json({
+                "success": True,
+                "task": _task_to_json(updated, tz),
+            })
+        else:
+            print(f"Task {args.task_id} updated.")
+            _print_task_details_pretty(updated, tz)
         return 0
 
     if args.tasks_command == "done":
-        project_id = await _resolve_task_project_id(client, args.task_id, args.project_id)
+        project_id = await _resolve_task_project_id(client, args.task_id, getattr(args, "project_id", None))
         await client.complete_task(args.task_id, project_id)
 
-        if args.json:
-            payload = {
+        if json_output:
+            _print_json({
                 "success": True,
                 "action": "done",
                 "task_id": args.task_id,
                 "project_id": project_id,
-            }
-            _print_json(payload)
+            })
         else:
             print(f"Task {args.task_id} marked as completed.")
-
         return 0
 
     if args.tasks_command == "abandon":
-        project_id = await _resolve_task_project_id(client, args.task_id, args.project_id)
+        project_id = await _resolve_task_project_id(client, args.task_id, getattr(args, "project_id", None))
         await _abandon_task(client, args.task_id, project_id)
 
-        if args.json:
-            payload = {
+        if json_output:
+            _print_json({
                 "success": True,
                 "action": "abandon",
                 "task_id": args.task_id,
                 "project_id": project_id,
-            }
-            _print_json(payload)
+            })
         else:
             print(f"Task {args.task_id} marked as abandoned (won't do).")
+        return 0
 
+    if args.tasks_command == "delete":
+        project_id = await _resolve_task_project_id(client, args.task_id, getattr(args, "project_id", None))
+        await client.delete_task(args.task_id, project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "delete",
+                "task_id": args.task_id,
+                "project_id": project_id,
+            })
+        else:
+            print(f"Task {args.task_id} deleted.")
+        return 0
+
+    if args.tasks_command == "move":
+        from_project_id = getattr(args, "from_project_id", None)
+        if not from_project_id:
+            from_project_id = await _resolve_task_project_id(client, args.task_id, None)
+        to_project_id = args.to_project_id
+        await client.move_task(args.task_id, from_project_id, to_project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "move",
+                "task_id": args.task_id,
+                "from_project_id": from_project_id,
+                "to_project_id": to_project_id,
+            })
+        else:
+            print(f"Task {args.task_id} moved from {from_project_id} to {to_project_id}.")
+        return 0
+
+    if args.tasks_command == "subtask":
+        project_id = await _resolve_task_project_id(client, args.task_id, getattr(args, "project_id", None))
+        await client.make_subtask(args.task_id, args.parent_id, project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "subtask",
+                "task_id": args.task_id,
+                "project_id": project_id,
+                "parent_id": args.parent_id,
+            })
+        else:
+            print(f"Task {args.task_id} is now a subtask of {args.parent_id}.")
+        return 0
+
+    if args.tasks_command == "unparent":
+        project_id = await _resolve_task_project_id(client, args.task_id, getattr(args, "project_id", None))
+        await client.unparent_subtask(args.task_id, project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "unparent",
+                "task_id": args.task_id,
+                "project_id": project_id,
+            })
+        else:
+            print(f"Task {args.task_id} moved to top level.")
+        return 0
+
+    if args.tasks_command == "pin":
+        project_id = await _resolve_task_project_id(client, args.task_id, getattr(args, "project_id", None))
+        task = await client.pin_task(args.task_id, project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "pin",
+                "task": _task_to_json(task, tz),
+            })
+        else:
+            print(f"Task {args.task_id} pinned.")
+            _print_task_details_pretty(task, tz)
+        return 0
+
+    if args.tasks_command == "unpin":
+        project_id = await _resolve_task_project_id(client, args.task_id, getattr(args, "project_id", None))
+        task = await client.unpin_task(args.task_id, project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "unpin",
+                "task": _task_to_json(task, tz),
+            })
+        else:
+            print(f"Task {args.task_id} unpinned.")
+            _print_task_details_pretty(task, tz)
+        return 0
+
+    if args.tasks_command == "column":
+        project_id = await _resolve_task_project_id(client, args.task_id, getattr(args, "project_id", None))
+        column_id = None if getattr(args, "clear_column", False) else getattr(args, "column_id", None)
+        task = await client.move_task_to_column(args.task_id, project_id, column_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "column",
+                "task": _task_to_json(task, tz),
+            })
+        else:
+            if column_id:
+                print(f"Task {args.task_id} moved to column {column_id}.")
+            else:
+                print(f"Task {args.task_id} removed from column.")
+            _print_task_details_pretty(task, tz)
+        return 0
+
+    if args.tasks_command == "search":
+        tasks = await client.search_tasks(args.query)
+        project_id = getattr(args, "project_id", None)
+        filtered = _filter_tasks_by_project(tasks, project_id)
+        filtered.sort(key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "count": len(filtered),
+                "query": args.query,
+                "project_id": project_id,
+                "timezone": tz_display_name,
+                "tasks": [_task_to_json(task, tz) for task in filtered],
+            })
+        else:
+            _print_task_list_pretty(
+                filtered,
+                project_id,
+                None,
+                tz_display_name,
+                tz,
+                title=f"Search: {args.query}",
+                show_project=project_id is None,
+            )
+        return 0
+
+    if args.tasks_command == "by-tag":
+        tasks = await client.get_tasks_by_tag(args.tag_name)
+        project_id = getattr(args, "project_id", None)
+        filtered = _filter_tasks_by_project(tasks, project_id)
+        filtered.sort(key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "count": len(filtered),
+                "tag": args.tag_name,
+                "project_id": project_id,
+                "timezone": tz_display_name,
+                "tasks": [_task_to_json(task, tz) for task in filtered],
+            })
+        else:
+            _print_task_list_pretty(
+                filtered,
+                project_id,
+                None,
+                tz_display_name,
+                tz,
+                title=f"Tasks tagged '{args.tag_name}'",
+                show_project=project_id is None,
+            )
+        return 0
+
+    if args.tasks_command == "by-priority":
+        priority_value = _parse_priority_value(args.priority)
+        if priority_value is None:
+            raise ValueError("Priority is required.")
+        tasks = await client.get_tasks_by_priority(priority_value)
+        project_id = getattr(args, "project_id", None)
+        filtered = _filter_tasks_by_project(tasks, project_id)
+        filtered.sort(key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "count": len(filtered),
+                "priority": priority_value,
+                "priority_label": _priority_label(priority_value),
+                "project_id": project_id,
+                "timezone": tz_display_name,
+                "tasks": [_task_to_json(task, tz) for task in filtered],
+            })
+        else:
+            _print_task_list_pretty(
+                filtered,
+                project_id,
+                None,
+                tz_display_name,
+                tz,
+                title=f"Tasks with priority {_priority_label(priority_value)}",
+                show_project=project_id is None,
+            )
+        return 0
+
+    if args.tasks_command == "today":
+        tasks = await client.get_today_tasks()
+        project_id = getattr(args, "project_id", None)
+        filtered = _filter_tasks_by_project(tasks, project_id)
+        filtered.sort(key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "count": len(filtered),
+                "project_id": project_id,
+                "timezone": tz_display_name,
+                "tasks": [_task_to_json(task, tz) for task in filtered],
+            })
+        else:
+            _print_task_list_pretty(
+                filtered,
+                project_id,
+                datetime.now(tz).date(),
+                tz_display_name,
+                tz,
+                title="Today's tasks",
+                show_project=project_id is None,
+            )
+        return 0
+
+    if args.tasks_command == "overdue":
+        tasks = await client.get_overdue_tasks()
+        project_id = getattr(args, "project_id", None)
+        filtered = _filter_tasks_by_project(tasks, project_id)
+        filtered.sort(key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "count": len(filtered),
+                "project_id": project_id,
+                "timezone": tz_display_name,
+                "tasks": [_task_to_json(task, tz) for task in filtered],
+            })
+        else:
+            _print_task_list_pretty(
+                filtered,
+                project_id,
+                None,
+                tz_display_name,
+                tz,
+                title="Overdue tasks",
+                show_project=project_id is None,
+            )
+        return 0
+
+    if args.tasks_command == "completed":
+        tasks = await client.get_completed_tasks(days=args.days, limit=args.limit)
+        project_id = getattr(args, "project_id", None)
+        filtered = _filter_tasks_by_project(tasks, project_id)
+        filtered.sort(key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "count": len(filtered),
+                "project_id": project_id,
+                "days": args.days,
+                "limit": args.limit,
+                "timezone": tz_display_name,
+                "tasks": [_task_to_json(task, tz) for task in filtered],
+            })
+        else:
+            _print_task_list_pretty(
+                filtered,
+                project_id,
+                None,
+                tz_display_name,
+                tz,
+                title=f"Completed tasks (last {args.days} days)",
+                show_project=project_id is None,
+            )
+        return 0
+
+    if args.tasks_command == "abandoned":
+        tasks = await client.get_abandoned_tasks(days=args.days, limit=args.limit)
+        project_id = getattr(args, "project_id", None)
+        filtered = _filter_tasks_by_project(tasks, project_id)
+        filtered.sort(key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "count": len(filtered),
+                "project_id": project_id,
+                "days": args.days,
+                "limit": args.limit,
+                "timezone": tz_display_name,
+                "tasks": [_task_to_json(task, tz) for task in filtered],
+            })
+        else:
+            _print_task_list_pretty(
+                filtered,
+                project_id,
+                None,
+                tz_display_name,
+                tz,
+                title=f"Abandoned tasks (last {args.days} days)",
+                show_project=project_id is None,
+            )
+        return 0
+
+    if args.tasks_command == "deleted":
+        tasks = await client.get_deleted_tasks(limit=args.limit)
+        project_id = getattr(args, "project_id", None)
+        filtered = _filter_tasks_by_project(tasks, project_id)
+        filtered.sort(key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "count": len(filtered),
+                "project_id": project_id,
+                "limit": args.limit,
+                "timezone": tz_display_name,
+                "tasks": [_task_to_json(task, tz) for task in filtered],
+            })
+        else:
+            _print_task_list_pretty(
+                filtered,
+                project_id,
+                None,
+                tz_display_name,
+                tz,
+                title="Deleted tasks",
+                show_project=project_id is None,
+            )
+        return 0
+
+    if args.tasks_command == "batch-create":
+        task_specs = _load_json_array_from_file(args.file)
+        created = await client.create_tasks(task_specs)
+        created_sorted = sorted(created, key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "success": True,
+                "count": len(created_sorted),
+                "tasks": [_task_to_json(task, tz) for task in created_sorted],
+            })
+        else:
+            _print_task_list_pretty(
+                created_sorted,
+                None,
+                None,
+                tz_display_name,
+                tz,
+                title="Batch created tasks",
+                show_project=True,
+            )
+        return 0
+
+    if args.tasks_command == "batch-update":
+        updates = _load_json_array_from_file(args.file)
+        response = await client.update_tasks(updates)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "batch-update",
+                "result": response,
+            })
+        else:
+            _print_batch_result_pretty("batch-update", response)
+        return 0
+
+    if args.tasks_command in {"batch-delete", "batch-done"}:
+        entries = _load_json_array_from_file(args.file)
+        task_ids: list[tuple[str, str]] = []
+        for index, entry in enumerate(entries):
+            if isinstance(entry, list | tuple) and len(entry) == 2:
+                task_ids.append((str(entry[0]), str(entry[1])))
+                continue
+            if isinstance(entry, dict) and {"task_id", "project_id"} <= set(entry):
+                task_ids.append((str(entry["task_id"]), str(entry["project_id"])))
+                continue
+            raise ValueError(
+                f"Invalid entry at index {index}. Expected [task_id, project_id] "
+                "or {'task_id': ..., 'project_id': ...}."
+            )
+
+        if args.tasks_command == "batch-delete":
+            response = await client.delete_tasks(task_ids)
+            action = "batch-delete"
+        else:
+            response = await client.complete_tasks(task_ids)
+            action = "batch-done"
+
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": action,
+                "result": response,
+            })
+        else:
+            _print_batch_result_pretty(action, response)
+        return 0
+
+    if args.tasks_command == "batch-move":
+        moves = _load_json_array_from_file(args.file)
+        response = await client.move_tasks(moves)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "batch-move",
+                "result": response,
+            })
+        else:
+            _print_batch_result_pretty("batch-move", response)
+        return 0
+
+    if args.tasks_command == "batch-parent":
+        assignments = _load_json_array_from_file(args.file)
+        response = await client.set_task_parents(assignments)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "batch-parent",
+                "result": response,
+            })
+        else:
+            _print_batch_result_pretty("batch-parent", response)
+        return 0
+
+    if args.tasks_command == "batch-unparent":
+        assignments = _load_json_array_from_file(args.file)
+        response = await client.unparent_tasks(assignments)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "batch-unparent",
+                "result": response,
+            })
+        else:
+            _print_batch_result_pretty("batch-unparent", response)
+        return 0
+
+    if args.tasks_command == "batch-pin":
+        operations = _load_json_array_from_file(args.file)
+        tasks = await client.pin_tasks(operations)
+        tasks_sorted = sorted(tasks, key=lambda task: _task_sort_key(task, tz))
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "batch-pin",
+                "count": len(tasks_sorted),
+                "tasks": [_task_to_json(task, tz) for task in tasks_sorted],
+            })
+        else:
+            _print_task_list_pretty(
+                tasks_sorted,
+                None,
+                None,
+                tz_display_name,
+                tz,
+                title="Batch pin/unpin results",
+                show_project=True,
+            )
         return 0
 
     raise ValueError(f"Unknown tasks subcommand: {args.tasks_command}")

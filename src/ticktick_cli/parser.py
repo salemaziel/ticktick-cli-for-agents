@@ -150,9 +150,26 @@ Examples:
         help="Accepted for consistency; auth output remains interactive text.",
     )
 
+    def _add_project_argument(command_parser: argparse.ArgumentParser, *, required: bool = False) -> None:
+        command_parser.add_argument(
+            "--project",
+            dest="project_id",
+            default=None,
+            required=required,
+            help="Project ID.",
+        )
+
+    def _add_json_argument(command_parser: argparse.ArgumentParser, *, help_text: str) -> None:
+        command_parser.add_argument(
+            "--json",
+            action="store_true",
+            help=help_text,
+        )
+
     tasks_parser = subparsers.add_parser(
         "tasks",
         help="Manage tasks from the command line",
+        description="Task management commands covering single and batch operations.",
     )
     tasks_subparsers = tasks_parser.add_subparsers(
         dest="tasks_command",
@@ -162,40 +179,54 @@ Examples:
 
     tasks_list_parser = tasks_subparsers.add_parser(
         "list",
-        help="List active tasks for the current project",
+        help="List active tasks (defaults to current project/inbox)",
     )
-    tasks_list_parser.add_argument(
-        "--project",
-        dest="project_id",
-        default=None,
-        help="Project ID. Defaults to current project (or inbox).",
-    )
+    _add_project_argument(tasks_list_parser)
     tasks_list_parser.add_argument(
         "--due",
         type=str,
         default=None,
         help="Filter by local due date (YYYY-MM-DD).",
     )
-    tasks_list_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output tasks as JSON.",
+    _add_json_argument(tasks_list_parser, help_text="Output tasks as JSON.")
+
+    tasks_get_parser = tasks_subparsers.add_parser(
+        "get",
+        help="Get a task by ID",
     )
+    tasks_get_parser.add_argument("task_id", type=str, help="Task ID")
+    _add_project_argument(tasks_get_parser)
+    _add_json_argument(tasks_get_parser, help_text="Output task as JSON.")
 
     tasks_add_parser = tasks_subparsers.add_parser(
         "add",
-        help="Create a task in the current project",
+        help="Create a task",
     )
+    tasks_add_parser.add_argument("title", type=str, help="Task title")
+    _add_project_argument(tasks_add_parser)
     tasks_add_parser.add_argument(
-        "title",
+        "--content",
         type=str,
-        help="Task title",
+        default=None,
+        help="Task notes/content.",
     )
     tasks_add_parser.add_argument(
-        "--project",
-        dest="project_id",
+        "--description",
+        type=str,
         default=None,
-        help="Project ID. Defaults to current project (or inbox).",
+        help="Checklist description (desc field).",
+    )
+    tasks_add_parser.add_argument(
+        "--kind",
+        choices=["TEXT", "NOTE", "CHECKLIST", "text", "note", "checklist"],
+        default=None,
+        help="Task kind/type.",
+    )
+    tasks_add_parser.add_argument(
+        "--start",
+        type=str,
+        default=None,
+        help="Start value: YYYY-MM-DD or ISO datetime.",
     )
     tasks_add_parser.add_argument(
         "--due",
@@ -204,56 +235,388 @@ Examples:
         help="Due value: YYYY-MM-DD or ISO datetime.",
     )
     tasks_add_parser.add_argument(
-        "--content",
-        type=str,
-        default=None,
-        help="Task notes/content.",
-    )
-    tasks_add_parser.add_argument(
         "--priority",
         choices=["none", "low", "medium", "high"],
         default=None,
         help="Task priority.",
     )
     tasks_add_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output created task as JSON.",
+        "--tags",
+        type=str,
+        default=None,
+        help="Comma-separated tags.",
     )
+    tasks_add_parser.add_argument(
+        "--recurrence",
+        type=str,
+        default=None,
+        help="RRULE recurrence value (requires --start).",
+    )
+    tasks_add_parser.add_argument(
+        "--time-zone",
+        dest="time_zone",
+        type=str,
+        default=None,
+        help="IANA timezone to store on task (default: TZ/local).",
+    )
+    add_all_day_group = tasks_add_parser.add_mutually_exclusive_group()
+    add_all_day_group.add_argument(
+        "--all-day",
+        action="store_true",
+        help="Mark task as all-day.",
+    )
+    add_all_day_group.add_argument(
+        "--timed",
+        action="store_true",
+        help="Mark task as timed (not all-day).",
+    )
+    tasks_add_parser.add_argument(
+        "--parent",
+        dest="parent_id",
+        type=str,
+        default=None,
+        help="Parent task ID (create as subtask).",
+    )
+    tasks_add_parser.add_argument(
+        "--reminders",
+        type=str,
+        default=None,
+        help="Comma-separated reminder triggers (e.g. TRIGGER:-PT30M).",
+    )
+    _add_json_argument(tasks_add_parser, help_text="Output created task as JSON.")
+
+    tasks_quick_add_parser = tasks_subparsers.add_parser(
+        "quick-add",
+        help="Quick add a task with just text/title",
+    )
+    tasks_quick_add_parser.add_argument("text", type=str, help="Task text/title")
+    _add_project_argument(tasks_quick_add_parser)
+    _add_json_argument(tasks_quick_add_parser, help_text="Output created task as JSON.")
+
+    tasks_update_parser = tasks_subparsers.add_parser(
+        "update",
+        help="Update a task",
+    )
+    tasks_update_parser.add_argument("task_id", type=str, help="Task ID")
+    _add_project_argument(tasks_update_parser)
+    tasks_update_parser.add_argument("--title", type=str, default=None, help="New title.")
+    tasks_update_parser.add_argument("--content", type=str, default=None, help="New content.")
+    tasks_update_parser.add_argument(
+        "--description",
+        type=str,
+        default=None,
+        help="New checklist description.",
+    )
+    tasks_update_parser.add_argument(
+        "--kind",
+        choices=["TEXT", "NOTE", "CHECKLIST", "text", "note", "checklist"],
+        default=None,
+        help="New task kind/type.",
+    )
+    tasks_update_parser.add_argument(
+        "--priority",
+        choices=["none", "low", "medium", "high"],
+        default=None,
+        help="New priority.",
+    )
+    tasks_update_parser.add_argument(
+        "--start",
+        type=str,
+        default=None,
+        help="Set start value (YYYY-MM-DD or ISO datetime).",
+    )
+    tasks_update_parser.add_argument(
+        "--clear-start",
+        action="store_true",
+        help="Clear task start date.",
+    )
+    tasks_update_parser.add_argument(
+        "--due",
+        type=str,
+        default=None,
+        help="Set due value (YYYY-MM-DD or ISO datetime).",
+    )
+    tasks_update_parser.add_argument(
+        "--clear-due",
+        action="store_true",
+        help="Clear task due date.",
+    )
+    tasks_update_parser.add_argument(
+        "--tags",
+        type=str,
+        default=None,
+        help="Set tags from comma-separated list (replaces existing tags).",
+    )
+    tasks_update_parser.add_argument(
+        "--clear-tags",
+        action="store_true",
+        help="Clear all tags.",
+    )
+    tasks_update_parser.add_argument(
+        "--recurrence",
+        type=str,
+        default=None,
+        help="Set RRULE recurrence value.",
+    )
+    tasks_update_parser.add_argument(
+        "--clear-recurrence",
+        action="store_true",
+        help="Clear recurrence rule.",
+    )
+    tasks_update_parser.add_argument(
+        "--time-zone",
+        dest="time_zone",
+        type=str,
+        default=None,
+        help="Set explicit timezone on task.",
+    )
+    update_all_day_group = tasks_update_parser.add_mutually_exclusive_group()
+    update_all_day_group.add_argument(
+        "--all-day",
+        action="store_true",
+        help="Mark task as all-day.",
+    )
+    update_all_day_group.add_argument(
+        "--timed",
+        action="store_true",
+        help="Mark task as timed (not all-day).",
+    )
+    _add_json_argument(tasks_update_parser, help_text="Output updated task as JSON.")
 
     tasks_done_parser = tasks_subparsers.add_parser(
         "done",
         help="Mark a task as completed",
     )
     tasks_done_parser.add_argument("task_id", type=str, help="Task ID")
-    tasks_done_parser.add_argument(
-        "--project",
-        dest="project_id",
-        default=None,
-        help="Project ID (optional; auto-resolved when omitted).",
-    )
-    tasks_done_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output result as JSON.",
-    )
+    _add_project_argument(tasks_done_parser)
+    _add_json_argument(tasks_done_parser, help_text="Output result as JSON.")
 
     tasks_abandon_parser = tasks_subparsers.add_parser(
         "abandon",
         help="Mark a task as abandoned (won't do)",
     )
     tasks_abandon_parser.add_argument("task_id", type=str, help="Task ID")
-    tasks_abandon_parser.add_argument(
-        "--project",
-        dest="project_id",
+    _add_project_argument(tasks_abandon_parser)
+    _add_json_argument(tasks_abandon_parser, help_text="Output result as JSON.")
+
+    tasks_delete_parser = tasks_subparsers.add_parser(
+        "delete",
+        help="Delete a task",
+    )
+    tasks_delete_parser.add_argument("task_id", type=str, help="Task ID")
+    _add_project_argument(tasks_delete_parser)
+    _add_json_argument(tasks_delete_parser, help_text="Output result as JSON.")
+
+    tasks_move_parser = tasks_subparsers.add_parser(
+        "move",
+        help="Move a task to another project",
+    )
+    tasks_move_parser.add_argument("task_id", type=str, help="Task ID")
+    tasks_move_parser.add_argument(
+        "--from-project",
+        dest="from_project_id",
         default=None,
-        help="Project ID (optional; auto-resolved when omitted).",
+        help="Current project ID (auto-resolved when omitted).",
     )
-    tasks_abandon_parser.add_argument(
-        "--json",
+    tasks_move_parser.add_argument(
+        "--to-project",
+        dest="to_project_id",
+        required=True,
+        help="Destination project ID.",
+    )
+    _add_json_argument(tasks_move_parser, help_text="Output result as JSON.")
+
+    tasks_subtask_parser = tasks_subparsers.add_parser(
+        "subtask",
+        help="Make a task a subtask of another task",
+    )
+    tasks_subtask_parser.add_argument("task_id", type=str, help="Task ID to make subtask")
+    tasks_subtask_parser.add_argument("--parent", dest="parent_id", required=True, help="Parent task ID.")
+    _add_project_argument(tasks_subtask_parser)
+    _add_json_argument(tasks_subtask_parser, help_text="Output result as JSON.")
+
+    tasks_unparent_parser = tasks_subparsers.add_parser(
+        "unparent",
+        help="Remove a subtask from its parent",
+    )
+    tasks_unparent_parser.add_argument("task_id", type=str, help="Task ID")
+    _add_project_argument(tasks_unparent_parser)
+    _add_json_argument(tasks_unparent_parser, help_text="Output result as JSON.")
+
+    tasks_pin_parser = tasks_subparsers.add_parser(
+        "pin",
+        help="Pin a task",
+    )
+    tasks_pin_parser.add_argument("task_id", type=str, help="Task ID")
+    _add_project_argument(tasks_pin_parser)
+    _add_json_argument(tasks_pin_parser, help_text="Output updated task as JSON.")
+
+    tasks_unpin_parser = tasks_subparsers.add_parser(
+        "unpin",
+        help="Unpin a task",
+    )
+    tasks_unpin_parser.add_argument("task_id", type=str, help="Task ID")
+    _add_project_argument(tasks_unpin_parser)
+    _add_json_argument(tasks_unpin_parser, help_text="Output updated task as JSON.")
+
+    tasks_column_parser = tasks_subparsers.add_parser(
+        "column",
+        help="Move task to a kanban column",
+    )
+    tasks_column_parser.add_argument("task_id", type=str, help="Task ID")
+    _add_project_argument(tasks_column_parser)
+    column_group = tasks_column_parser.add_mutually_exclusive_group(required=True)
+    column_group.add_argument("--column", dest="column_id", default=None, help="Target column ID.")
+    column_group.add_argument(
+        "--clear-column",
         action="store_true",
-        help="Output result as JSON.",
+        help="Remove task from its current column.",
     )
+    _add_json_argument(tasks_column_parser, help_text="Output updated task as JSON.")
+
+    tasks_search_parser = tasks_subparsers.add_parser(
+        "search",
+        help="Search tasks by title/content",
+    )
+    tasks_search_parser.add_argument("query", type=str, help="Search query")
+    _add_project_argument(tasks_search_parser)
+    _add_json_argument(tasks_search_parser, help_text="Output matching tasks as JSON.")
+
+    tasks_tag_parser = tasks_subparsers.add_parser(
+        "by-tag",
+        help="List tasks by tag",
+    )
+    tasks_tag_parser.add_argument("tag_name", type=str, help="Tag name")
+    _add_project_argument(tasks_tag_parser)
+    _add_json_argument(tasks_tag_parser, help_text="Output matching tasks as JSON.")
+
+    tasks_priority_parser = tasks_subparsers.add_parser(
+        "by-priority",
+        help="List tasks by priority",
+    )
+    tasks_priority_parser.add_argument(
+        "priority",
+        type=str,
+        help="Priority value: none|low|medium|high|0|1|3|5",
+    )
+    _add_project_argument(tasks_priority_parser)
+    _add_json_argument(tasks_priority_parser, help_text="Output matching tasks as JSON.")
+
+    tasks_today_parser = tasks_subparsers.add_parser(
+        "today",
+        help="List tasks due today",
+    )
+    _add_project_argument(tasks_today_parser)
+    _add_json_argument(tasks_today_parser, help_text="Output tasks as JSON.")
+
+    tasks_overdue_parser = tasks_subparsers.add_parser(
+        "overdue",
+        help="List overdue tasks",
+    )
+    _add_project_argument(tasks_overdue_parser)
+    _add_json_argument(tasks_overdue_parser, help_text="Output tasks as JSON.")
+
+    tasks_completed_parser = tasks_subparsers.add_parser(
+        "completed",
+        help="List recently completed tasks",
+    )
+    tasks_completed_parser.add_argument("--days", type=int, default=7, help="Lookback window in days.")
+    tasks_completed_parser.add_argument("--limit", type=int, default=100, help="Maximum tasks to return.")
+    _add_project_argument(tasks_completed_parser)
+    _add_json_argument(tasks_completed_parser, help_text="Output tasks as JSON.")
+
+    tasks_abandoned_parser = tasks_subparsers.add_parser(
+        "abandoned",
+        help="List recently abandoned tasks",
+    )
+    tasks_abandoned_parser.add_argument("--days", type=int, default=7, help="Lookback window in days.")
+    tasks_abandoned_parser.add_argument("--limit", type=int, default=100, help="Maximum tasks to return.")
+    _add_project_argument(tasks_abandoned_parser)
+    _add_json_argument(tasks_abandoned_parser, help_text="Output tasks as JSON.")
+
+    tasks_deleted_parser = tasks_subparsers.add_parser(
+        "deleted",
+        help="List deleted tasks in trash",
+    )
+    tasks_deleted_parser.add_argument("--limit", type=int, default=100, help="Maximum tasks to return.")
+    _add_project_argument(tasks_deleted_parser)
+    _add_json_argument(tasks_deleted_parser, help_text="Output tasks as JSON.")
+
+    tasks_batch_create_parser = tasks_subparsers.add_parser(
+        "batch-create",
+        help="Create tasks from JSON file",
+    )
+    tasks_batch_create_parser.add_argument("--file", required=True, help="Path to JSON array of task specs.")
+    _add_json_argument(tasks_batch_create_parser, help_text="Output created tasks as JSON.")
+
+    tasks_batch_update_parser = tasks_subparsers.add_parser(
+        "batch-update",
+        help="Update tasks from JSON file",
+    )
+    tasks_batch_update_parser.add_argument("--file", required=True, help="Path to JSON array of update specs.")
+    _add_json_argument(tasks_batch_update_parser, help_text="Output batch result as JSON.")
+
+    tasks_batch_delete_parser = tasks_subparsers.add_parser(
+        "batch-delete",
+        help="Delete tasks from JSON file",
+    )
+    tasks_batch_delete_parser.add_argument(
+        "--file",
+        required=True,
+        help="Path to JSON array of [task_id, project_id] pairs.",
+    )
+    _add_json_argument(tasks_batch_delete_parser, help_text="Output batch result as JSON.")
+
+    tasks_batch_done_parser = tasks_subparsers.add_parser(
+        "batch-done",
+        help="Complete tasks from JSON file",
+    )
+    tasks_batch_done_parser.add_argument(
+        "--file",
+        required=True,
+        help="Path to JSON array of [task_id, project_id] pairs.",
+    )
+    _add_json_argument(tasks_batch_done_parser, help_text="Output batch result as JSON.")
+
+    tasks_batch_move_parser = tasks_subparsers.add_parser(
+        "batch-move",
+        help="Move tasks from JSON file",
+    )
+    tasks_batch_move_parser.add_argument("--file", required=True, help="Path to JSON array of move specs.")
+    _add_json_argument(tasks_batch_move_parser, help_text="Output batch result as JSON.")
+
+    tasks_batch_parent_parser = tasks_subparsers.add_parser(
+        "batch-parent",
+        help="Set parent tasks from JSON file",
+    )
+    tasks_batch_parent_parser.add_argument(
+        "--file",
+        required=True,
+        help="Path to JSON array of parent assignment specs.",
+    )
+    _add_json_argument(tasks_batch_parent_parser, help_text="Output batch result as JSON.")
+
+    tasks_batch_unparent_parser = tasks_subparsers.add_parser(
+        "batch-unparent",
+        help="Remove task parents from JSON file",
+    )
+    tasks_batch_unparent_parser.add_argument(
+        "--file",
+        required=True,
+        help="Path to JSON array of unparent specs.",
+    )
+    _add_json_argument(tasks_batch_unparent_parser, help_text="Output batch result as JSON.")
+
+    tasks_batch_pin_parser = tasks_subparsers.add_parser(
+        "batch-pin",
+        help="Pin/unpin tasks from JSON file",
+    )
+    tasks_batch_pin_parser.add_argument(
+        "--file",
+        required=True,
+        help="Path to JSON array of pin specs.",
+    )
+    _add_json_argument(tasks_batch_pin_parser, help_text="Output updated tasks as JSON.")
 
     projects_parser = subparsers.add_parser(
         "projects",

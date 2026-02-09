@@ -38,6 +38,22 @@ class _FakeClient:
         self.complete_task_calls: list[tuple[str, str]] = []
         self.abandon_task_calls: list[tuple[str, str]] = []
         self.update_task_calls: list[Task] = []
+        self.delete_task_calls: list[tuple[str, str]] = []
+        self.move_task_calls: list[tuple[str, str, str]] = []
+        self.make_subtask_calls: list[tuple[str, str, str]] = []
+        self.unparent_subtask_calls: list[tuple[str, str]] = []
+        self.pin_task_calls: list[tuple[str, str]] = []
+        self.unpin_task_calls: list[tuple[str, str]] = []
+        self.move_task_to_column_calls: list[tuple[str, str, str | None]] = []
+        self.quick_add_calls: list[tuple[str, str | None]] = []
+        self.create_tasks_calls: list[list[dict]] = []
+        self.update_tasks_calls: list[list[dict]] = []
+        self.delete_tasks_calls: list[list[tuple[str, str]]] = []
+        self.complete_tasks_calls: list[list[tuple[str, str]]] = []
+        self.move_tasks_calls: list[list[dict]] = []
+        self.set_task_parents_calls: list[list[dict]] = []
+        self.unparent_tasks_calls: list[list[dict]] = []
+        self.pin_tasks_calls: list[list[dict]] = []
 
     async def get_all_tasks(self) -> list[Task]:
         return self._tasks
@@ -70,10 +86,152 @@ class _FakeClient:
     async def abandon_task(self, task_id: str, project_id: str) -> None:
         self.abandon_task_calls.append((task_id, project_id))
 
+    async def delete_task(self, task_id: str, project_id: str) -> None:
+        self.delete_task_calls.append((task_id, project_id))
+        self._tasks_by_id.pop(task_id, None)
+
+    async def move_task(self, task_id: str, from_project_id: str, to_project_id: str) -> None:
+        self.move_task_calls.append((task_id, from_project_id, to_project_id))
+        task = self._tasks_by_id[task_id]
+        task.project_id = to_project_id
+        self._tasks_by_id[task_id] = task
+
+    async def make_subtask(self, task_id: str, parent_id: str, project_id: str) -> None:
+        self.make_subtask_calls.append((task_id, parent_id, project_id))
+        task = self._tasks_by_id[task_id]
+        task.parent_id = parent_id
+
+    async def unparent_subtask(self, task_id: str, project_id: str) -> None:
+        self.unparent_subtask_calls.append((task_id, project_id))
+        task = self._tasks_by_id[task_id]
+        task.parent_id = None
+
+    async def pin_task(self, task_id: str, project_id: str) -> Task:
+        self.pin_task_calls.append((task_id, project_id))
+        task = self._tasks_by_id[task_id]
+        task.pinned_time = datetime.now(UTC)
+        return task
+
+    async def unpin_task(self, task_id: str, project_id: str) -> Task:
+        self.unpin_task_calls.append((task_id, project_id))
+        task = self._tasks_by_id[task_id]
+        task.pinned_time = None
+        return task
+
+    async def move_task_to_column(self, task_id: str, project_id: str, column_id: str | None) -> Task:
+        self.move_task_to_column_calls.append((task_id, project_id, column_id))
+        task = self._tasks_by_id[task_id]
+        task.column_id = column_id
+        return task
+
     async def update_task(self, task: Task) -> Task:
         self.update_task_calls.append(task)
         self._tasks_by_id[task.id] = task
         return task
+
+    async def quick_add(self, text: str, project_id: str | None = None) -> Task:
+        self.quick_add_calls.append((text, project_id))
+        project = project_id or self.inbox_id
+        return await self.create_task(title=text, project_id=project)
+
+    async def search_tasks(self, query: str) -> list[Task]:
+        query_lower = query.lower()
+        return [
+            task for task in self._tasks
+            if (task.title and query_lower in task.title.lower())
+            or (task.content and query_lower in task.content.lower())
+        ]
+
+    async def get_tasks_by_tag(self, tag_name: str) -> list[Task]:
+        tag_lower = tag_name.lower()
+        return [
+            task for task in self._tasks
+            if any(tag.lower() == tag_lower for tag in (task.tags or []))
+        ]
+
+    async def get_tasks_by_priority(self, priority: int | str) -> list[Task]:
+        priority_value = 0
+        if isinstance(priority, str):
+            mapping = {"none": 0, "low": 1, "medium": 3, "high": 5}
+            priority_value = mapping[priority]
+        else:
+            priority_value = priority
+        return [task for task in self._tasks if int(task.priority) == int(priority_value)]
+
+    async def get_today_tasks(self) -> list[Task]:
+        today = datetime.now(UTC).date()
+        return [task for task in self._tasks if task.due_date and task.due_date.date() == today]
+
+    async def get_overdue_tasks(self) -> list[Task]:
+        today = datetime.now(UTC).date()
+        return [
+            task for task in self._tasks
+            if task.due_date and task.due_date.date() < today and int(task.status) == 0
+        ]
+
+    async def get_completed_tasks(self, days: int = 7, limit: int = 100) -> list[Task]:
+        del days
+        completed = [task for task in self._tasks if int(task.status) in (1, 2)]
+        return completed[:limit]
+
+    async def get_abandoned_tasks(self, days: int = 7, limit: int = 100) -> list[Task]:
+        del days
+        abandoned = [task for task in self._tasks if int(task.status) == -1]
+        return abandoned[:limit]
+
+    async def get_deleted_tasks(self, limit: int = 100) -> list[Task]:
+        return self._tasks[:limit]
+
+    async def create_tasks(self, tasks: list[dict]) -> list[Task]:
+        self.create_tasks_calls.append(tasks)
+        created: list[Task] = []
+        for idx, spec in enumerate(tasks, start=1):
+            task = Task(
+                id=f"batch-created-{idx}",
+                project_id=spec.get("project_id", self.inbox_id),
+                title=spec["title"],
+                content=spec.get("content"),
+                priority=int(spec.get("priority", 0)),
+                status=0,
+                tags=spec.get("tags", []),
+            )
+            self._tasks.append(task)
+            self._tasks_by_id[task.id] = task
+            created.append(task)
+        return created
+
+    async def update_tasks(self, updates: list[dict]) -> dict:
+        self.update_tasks_calls.append(updates)
+        return {"id2etag": {"ok": "etag"}, "id2error": {}}
+
+    async def delete_tasks(self, task_ids: list[tuple[str, str]]) -> dict:
+        self.delete_tasks_calls.append(task_ids)
+        return {"id2etag": {task_id: "etag" for task_id, _ in task_ids}, "id2error": {}}
+
+    async def complete_tasks(self, task_ids: list[tuple[str, str]]) -> dict:
+        self.complete_tasks_calls.append(task_ids)
+        return {"id2etag": {task_id: "etag" for task_id, _ in task_ids}, "id2error": {}}
+
+    async def move_tasks(self, moves: list[dict]) -> list[dict]:
+        self.move_tasks_calls.append(moves)
+        return moves
+
+    async def set_task_parents(self, assignments: list[dict]) -> list[dict]:
+        self.set_task_parents_calls.append(assignments)
+        return assignments
+
+    async def unparent_tasks(self, tasks: list[dict]) -> list[dict]:
+        self.unparent_tasks_calls.append(tasks)
+        return tasks
+
+    async def pin_tasks(self, pin_operations: list[dict]) -> list[Task]:
+        self.pin_tasks_calls.append(pin_operations)
+        result: list[Task] = []
+        for operation in pin_operations:
+            task = self._tasks_by_id[operation["task_id"]]
+            task.pinned_time = datetime.now(UTC) if operation.get("pin", True) else None
+            result.append(task)
+        return result
 
     async def get_all_projects(self) -> list[Project]:
         return self._projects
@@ -358,6 +516,226 @@ async def test_projects_list_marks_current_project(monkeypatch, capsys) -> None:
     by_id = {project["id"]: project for project in output["projects"]}
     assert by_id["project-a"]["is_current"] is True
     assert by_id["project-b"]["is_current"] is False
+
+
+@pytest.mark.asyncio
+async def test_tasks_update_sets_fields(monkeypatch, capsys) -> None:
+    monkeypatch.delenv("TICKTICK_CURRENT_PROJECT_ID", raising=False)
+    monkeypatch.setenv("TZ", "UTC")
+
+    task = Task(
+        id="task-upd",
+        project_id="proj-1",
+        title="Old title",
+        content="Old content",
+        desc="Old desc",
+        priority=0,
+        status=0,
+        tags=["old"],
+    )
+    client = _FakeClient(tasks=[task])
+
+    args = Namespace(
+        command="tasks",
+        tasks_command="update",
+        task_id="task-upd",
+        project_id=None,
+        title="New title",
+        content="New content",
+        description="New desc",
+        kind="NOTE",
+        priority="high",
+        start=None,
+        clear_start=False,
+        due=None,
+        clear_due=False,
+        tags="work,urgent",
+        clear_tags=False,
+        recurrence="RRULE:FREQ=DAILY",
+        clear_recurrence=False,
+        time_zone="Europe/Warsaw",
+        all_day=False,
+        timed=False,
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+    assert len(client.update_task_calls) == 1
+
+    updated = client.update_task_calls[0]
+    assert updated.title == "New title"
+    assert updated.content == "New content"
+    assert updated.desc == "New desc"
+    assert updated.kind == "NOTE"
+    assert int(updated.priority) == 5
+    assert updated.tags == ["work", "urgent"]
+    assert updated.repeat_flag == "RRULE:FREQ=DAILY"
+    assert updated.time_zone == "Europe/Warsaw"
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["success"] is True
+    assert output["task"]["id"] == "task-upd"
+
+
+@pytest.mark.asyncio
+async def test_tasks_delete_resolves_project_from_task(capsys) -> None:
+    task = Task(
+        id="task-del",
+        project_id="proj-del",
+        title="Delete me",
+        priority=0,
+        status=0,
+        tags=[],
+    )
+    client = _FakeClient(tasks=[task])
+
+    args = Namespace(
+        command="tasks",
+        tasks_command="delete",
+        task_id="task-del",
+        project_id=None,
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+    assert client.delete_task_calls == [("task-del", "proj-del")]
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["action"] == "delete"
+
+
+@pytest.mark.asyncio
+async def test_tasks_move_auto_resolves_from_project(capsys) -> None:
+    task = Task(
+        id="task-move",
+        project_id="proj-from",
+        title="Move me",
+        priority=0,
+        status=0,
+        tags=[],
+    )
+    client = _FakeClient(tasks=[task])
+
+    args = Namespace(
+        command="tasks",
+        tasks_command="move",
+        task_id="task-move",
+        from_project_id=None,
+        to_project_id="proj-to",
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+    assert client.move_task_calls == [("task-move", "proj-from", "proj-to")]
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["action"] == "move"
+
+
+@pytest.mark.asyncio
+async def test_tasks_search_can_filter_project(capsys) -> None:
+    tasks = [
+        Task(
+            id="search-1",
+            project_id="p1",
+            title="Find me",
+            content="needle",
+            priority=0,
+            status=0,
+            tags=[],
+        ),
+        Task(
+            id="search-2",
+            project_id="p2",
+            title="Find me too",
+            content="needle",
+            priority=0,
+            status=0,
+            tags=[],
+        ),
+    ]
+    client = _FakeClient(tasks=tasks)
+
+    args = Namespace(
+        command="tasks",
+        tasks_command="search",
+        query="needle",
+        project_id="p1",
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["count"] == 1
+    assert output["tasks"][0]["id"] == "search-1"
+
+
+@pytest.mark.asyncio
+async def test_tasks_by_priority_accepts_named_priority(capsys) -> None:
+    tasks = [
+        Task(
+            id="prio-high",
+            project_id="p1",
+            title="High",
+            priority=5,
+            status=0,
+            tags=[],
+        ),
+        Task(
+            id="prio-low",
+            project_id="p1",
+            title="Low",
+            priority=1,
+            status=0,
+            tags=[],
+        ),
+    ]
+    client = _FakeClient(tasks=tasks)
+
+    args = Namespace(
+        command="tasks",
+        tasks_command="by-priority",
+        priority="high",
+        project_id=None,
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["count"] == 1
+    assert output["tasks"][0]["id"] == "prio-high"
+
+
+@pytest.mark.asyncio
+async def test_tasks_batch_delete_accepts_object_entries(tmp_path, capsys) -> None:
+    client = _FakeClient()
+    payload = [
+        {"task_id": "task-1", "project_id": "proj-1"},
+        {"task_id": "task-2", "project_id": "proj-2"},
+    ]
+    file_path = tmp_path / "batch_delete.json"
+    file_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    args = Namespace(
+        command="tasks",
+        tasks_command="batch-delete",
+        file=str(file_path),
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+    assert client.delete_tasks_calls == [[("task-1", "proj-1"), ("task-2", "proj-2")]]
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["action"] == "batch-delete"
 
 
 def test_patch_v2_session_handler_for_429_patches_legacy_headers(monkeypatch) -> None:
