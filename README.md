@@ -18,6 +18,7 @@ and auth implementation.
 | Habits | Done | Full habit management and check-in commands implemented |
 | User | Done | Profile/status/statistics/preferences commands implemented |
 | Focus | Done | Focus heatmap and tag analytics commands implemented |
+| Sync | Done | Full account sync payload command implemented |
 
 ## Installation
 
@@ -45,6 +46,7 @@ ticktick server --enabledTools ticktick_list_tasks,ticktick_create_tasks
 
 ticktick auth
 ticktick auth --manual
+ticktick sync --json
 ```
 
 ## Task Commands

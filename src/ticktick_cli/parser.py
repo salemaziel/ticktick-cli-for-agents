@@ -150,6 +150,16 @@ Examples:
         help="Accepted for consistency; auth output remains interactive text.",
     )
 
+    sync_parser = subparsers.add_parser(
+        "sync",
+        help="Fetch full account sync payload",
+    )
+    sync_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output sync payload as JSON.",
+    )
+
     def _add_project_argument(command_parser: argparse.ArgumentParser, *, required: bool = False) -> None:
         command_parser.add_argument(
             "--project",

@@ -2136,6 +2136,20 @@ async def _run_habits_command(client: Any, args: argparse.Namespace) -> int:
     raise ValueError(f"Unknown habits subcommand: {args.habits_command}")
 
 
+async def _run_sync_command(client: Any, args: argparse.Namespace) -> int:
+    payload = _as_jsonable(await client.sync())
+    if getattr(args, "json", False):
+        _print_json({"sync": payload})
+    else:
+        if isinstance(payload, dict):
+            print("Sync complete")
+            print(f"Top-level keys: {len(payload)}")
+            print(", ".join(sorted(payload.keys())))
+        else:
+            print("Sync complete.")
+    return 0
+
+
 async def run_data_cli(args: argparse.Namespace) -> int:
     """Run task/project CLI commands."""
     _apply_v2_auth_rate_limit_workaround()
@@ -2145,6 +2159,8 @@ async def run_data_cli(args: argparse.Namespace) -> int:
 
     try:
         async with TickTickClient.from_settings() as client:
+            if args.command == "sync":
+                return await _run_sync_command(client, args)
             if args.command == "tasks":
                 return await _run_tasks_command(client, args)
             if args.command == "projects":

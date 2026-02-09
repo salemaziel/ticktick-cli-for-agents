@@ -16,6 +16,7 @@ from ticktick_cli.commands import (
     _run_habits_command,
     _patch_v2_session_handler_for_429,
     _run_projects_command,
+    _run_sync_command,
     _run_tasks_command,
     _run_tags_command,
     _run_user_command,
@@ -376,6 +377,9 @@ class _FakeClient:
 
     async def get_all_habits(self) -> list[SimpleNamespace]:
         return list(self._habits.values())
+
+    async def sync(self) -> dict:
+        return {"projects": [], "tasks": [], "tags": []}
 
     async def get_habit(self, habit_id: str) -> SimpleNamespace:
         return self._habits[habit_id]
@@ -1429,6 +1433,19 @@ async def test_habits_lifecycle_and_checkins(capsys, tmp_path) -> None:
     assert delete_exit == 0
     delete_payload = json.loads(capsys.readouterr().out)
     assert delete_payload["action"] == "delete"
+
+
+@pytest.mark.asyncio
+async def test_sync_command_returns_json(capsys) -> None:
+    client = _FakeClient()
+    args = Namespace(command="sync", json=True)
+
+    exit_code = await _run_sync_command(client, args)
+    assert exit_code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert "sync" in output
+    assert output["sync"]["projects"] == []
 
 
 @pytest.mark.asyncio
