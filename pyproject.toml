@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ticktick-cli"
+version = "0.1.0"
+description = "Standalone command-line interface for TickTick built on ticktick-sdk"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Egor Lynko" },
+]
+keywords = [
+  "ticktick",
+  "cli",
+  "task-management",
+  "productivity",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Environment :: Console",
+  "Topic :: Utilities",
+]
+dependencies = [
+  "ticktick-sdk>=0.4.3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.23.0",
+  "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+ticktick = "ticktick_cli.app:cli_main"
+
+[project.urls]
+Homepage = "https://github.com/flexoid/ticktick-cli"
+Repository = "https://github.com/flexoid/ticktick-cli"
+Issues = "https://github.com/flexoid/ticktick-cli/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ticktick_cli"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
