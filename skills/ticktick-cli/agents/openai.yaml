@@ -1,0 +1,4 @@
+interface:
+  display_name: "TickTick CLI"
+  short_description: "Run and automate TickTick CLI workflows"
+  default_prompt: "Use $ticktick-cli to manage TickTick tasks, projects, tags, habits, and user data with terminal commands."
