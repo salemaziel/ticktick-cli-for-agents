@@ -747,4 +747,49 @@ Examples:
     folders_delete_parser.add_argument("folder_id", type=str, help="Folder ID")
     _add_json_argument(folders_delete_parser, help_text="Output result as JSON.")
 
+    columns_parser = subparsers.add_parser(
+        "columns",
+        help="Manage kanban columns",
+        description="Kanban column management commands.",
+    )
+    columns_subparsers = columns_parser.add_subparsers(
+        dest="columns_command",
+        metavar="<action>",
+        required=True,
+    )
+
+    columns_list_parser = columns_subparsers.add_parser(
+        "list",
+        help="List columns for a project",
+    )
+    columns_list_parser.add_argument("--project", dest="project_id", required=True, help="Project ID")
+    _add_json_argument(columns_list_parser, help_text="Output columns as JSON.")
+
+    columns_create_parser = columns_subparsers.add_parser(
+        "create",
+        help="Create a column",
+    )
+    columns_create_parser.add_argument("--project", dest="project_id", required=True, help="Project ID")
+    columns_create_parser.add_argument("name", type=str, help="Column name")
+    columns_create_parser.add_argument("--sort", dest="sort_order", type=int, default=None, help="Sort order.")
+    _add_json_argument(columns_create_parser, help_text="Output created column as JSON.")
+
+    columns_update_parser = columns_subparsers.add_parser(
+        "update",
+        help="Update a column",
+    )
+    columns_update_parser.add_argument("column_id", type=str, help="Column ID")
+    columns_update_parser.add_argument("--project", dest="project_id", required=True, help="Project ID")
+    columns_update_parser.add_argument("--name", type=str, default=None, help="New column name.")
+    columns_update_parser.add_argument("--sort", dest="sort_order", type=int, default=None, help="New sort order.")
+    _add_json_argument(columns_update_parser, help_text="Output updated column as JSON.")
+
+    columns_delete_parser = columns_subparsers.add_parser(
+        "delete",
+        help="Delete a column",
+    )
+    columns_delete_parser.add_argument("column_id", type=str, help="Column ID")
+    columns_delete_parser.add_argument("--project", dest="project_id", required=True, help="Project ID")
+    _add_json_argument(columns_delete_parser, help_text="Output result as JSON.")
+
     return parser

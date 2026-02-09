@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 import pytest
 
 from ticktick_cli.commands import (
+    _run_columns_command,
     _run_folders_command,
     _patch_v2_session_handler_for_429,
     _run_projects_command,
@@ -64,6 +65,10 @@ class _FakeClient:
         self.create_folder_calls: list[str] = []
         self.rename_folder_calls: list[tuple[str, str]] = []
         self.delete_folder_calls: list[str] = []
+        self._columns_by_project: dict[str, list[Column]] = {}
+        self.create_column_calls: list[dict] = []
+        self.update_column_calls: list[dict] = []
+        self.delete_column_calls: list[tuple[str, str]] = []
 
     async def get_all_tasks(self) -> list[Task]:
         return self._tasks
@@ -347,6 +352,60 @@ class _FakeClient:
         self.delete_folder_calls.append(folder_id)
         self._folders_by_id.pop(folder_id, None)
         self._folders = [folder for folder in self._folders if folder.id != folder_id]
+
+    async def get_columns(self, project_id: str) -> list[Column]:
+        return self._columns_by_project.get(project_id, [])
+
+    async def create_column(
+        self,
+        project_id: str,
+        name: str,
+        *,
+        sort_order: int | None = None,
+    ) -> Column:
+        self.create_column_calls.append({
+            "project_id": project_id,
+            "name": name,
+            "sort_order": sort_order,
+        })
+        columns = self._columns_by_project.setdefault(project_id, [])
+        column = Column(
+            id=f"{project_id}-col-{len(columns) + 1}",
+            project_id=project_id,
+            name=name,
+            sort_order=sort_order if sort_order is not None else len(columns),
+        )
+        columns.append(column)
+        return column
+
+    async def update_column(
+        self,
+        column_id: str,
+        project_id: str,
+        *,
+        name: str | None = None,
+        sort_order: int | None = None,
+    ) -> Column:
+        self.update_column_calls.append({
+            "column_id": column_id,
+            "project_id": project_id,
+            "name": name,
+            "sort_order": sort_order,
+        })
+        columns = self._columns_by_project.setdefault(project_id, [])
+        for column in columns:
+            if column.id == column_id:
+                if name is not None:
+                    column.name = name
+                if sort_order is not None:
+                    column.sort_order = sort_order
+                return column
+        raise KeyError(column_id)
+
+    async def delete_column(self, column_id: str, project_id: str) -> None:
+        self.delete_column_calls.append((column_id, project_id))
+        columns = self._columns_by_project.setdefault(project_id, [])
+        self._columns_by_project[project_id] = [col for col in columns if col.id != column_id]
 
 
 @pytest.mark.asyncio
@@ -823,6 +882,67 @@ async def test_folders_create_list_rename_delete_flow(capsys) -> None:
     assert delete_output["success"] is True
     assert delete_output["action"] == "delete"
     assert client.delete_folder_calls == [folder_id]
+
+
+@pytest.mark.asyncio
+async def test_columns_create_list_update_delete_flow(capsys) -> None:
+    client = _FakeClient()
+    project_id = "project-1"
+
+    create_args = Namespace(
+        command="columns",
+        columns_command="create",
+        project_id=project_id,
+        name="Backlog",
+        sort_order=0,
+        json=True,
+    )
+    create_exit = await _run_columns_command(client, create_args)
+    assert create_exit == 0
+    create_output = json.loads(capsys.readouterr().out)
+    column_id = create_output["column"]["id"]
+    assert create_output["column"]["name"] == "Backlog"
+
+    list_args = Namespace(
+        command="columns",
+        columns_command="list",
+        project_id=project_id,
+        json=True,
+    )
+    list_exit = await _run_columns_command(client, list_args)
+    assert list_exit == 0
+    list_output = json.loads(capsys.readouterr().out)
+    assert list_output["count"] == 1
+    assert list_output["columns"][0]["id"] == column_id
+
+    update_args = Namespace(
+        command="columns",
+        columns_command="update",
+        column_id=column_id,
+        project_id=project_id,
+        name="In Progress",
+        sort_order=2,
+        json=True,
+    )
+    update_exit = await _run_columns_command(client, update_args)
+    assert update_exit == 0
+    update_output = json.loads(capsys.readouterr().out)
+    assert update_output["column"]["name"] == "In Progress"
+    assert update_output["column"]["sort_order"] == 2
+
+    delete_args = Namespace(
+        command="columns",
+        columns_command="delete",
+        column_id=column_id,
+        project_id=project_id,
+        json=True,
+    )
+    delete_exit = await _run_columns_command(client, delete_args)
+    assert delete_exit == 0
+    delete_output = json.loads(capsys.readouterr().out)
+    assert delete_output["success"] is True
+    assert delete_output["action"] == "delete"
+    assert client.delete_column_calls == [(column_id, project_id)]
 
 
 @pytest.mark.asyncio

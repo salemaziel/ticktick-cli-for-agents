@@ -693,6 +693,23 @@ def _print_folders_pretty(folders: list[Any]) -> None:
     _print_table(["ID", "Name", "View", "Sort", "Deleted"], rows)
 
 
+def _print_columns_pretty(columns: list[Any], project_id: str) -> None:
+    print(f"Columns ({len(columns)})")
+    print(f"Project: {project_id}")
+    if not columns:
+        print("No columns found.")
+        return
+
+    rows: list[list[str]] = []
+    for column in columns:
+        rows.append([
+            str(getattr(column, "id", "")),
+            _truncate(str(getattr(column, "name", "") or ""), 42),
+            str(getattr(column, "sort_order", "") or "-"),
+        ])
+    _print_table(["ID", "Name", "Sort"], rows)
+
+
 def _task_sort_key(task: Any, tz: tzinfo) -> tuple[bool, str, int, str]:
     due_date = getattr(task, "due_date", None)
     due_local = _datetime_in_timezone(due_date, tz) if due_date else None
@@ -1587,6 +1604,73 @@ async def _run_folders_command(client: Any, args: argparse.Namespace) -> int:
     raise ValueError(f"Unknown folders subcommand: {args.folders_command}")
 
 
+async def _run_columns_command(client: Any, args: argparse.Namespace) -> int:
+    json_output = bool(getattr(args, "json", False))
+
+    if args.columns_command == "list":
+        columns = await client.get_columns(args.project_id)
+        columns_sorted = sorted(columns, key=lambda column: int(getattr(column, "sort_order", 0)))
+        if json_output:
+            _print_json({
+                "count": len(columns_sorted),
+                "project_id": args.project_id,
+                "columns": [_column_to_json(column) for column in columns_sorted],
+            })
+        else:
+            _print_columns_pretty(columns_sorted, args.project_id)
+        return 0
+
+    if args.columns_command == "create":
+        column = await client.create_column(
+            project_id=args.project_id,
+            name=args.name,
+            sort_order=args.sort_order,
+        )
+        if json_output:
+            _print_json({
+                "success": True,
+                "column": _column_to_json(column),
+            })
+        else:
+            print(f"Column created: {getattr(column, 'id', '')}")
+            _print_columns_pretty([column], args.project_id)
+        return 0
+
+    if args.columns_command == "update":
+        if args.name is None and args.sort_order is None:
+            raise ValueError("No update fields provided.")
+        column = await client.update_column(
+            column_id=args.column_id,
+            project_id=args.project_id,
+            name=args.name,
+            sort_order=args.sort_order,
+        )
+        if json_output:
+            _print_json({
+                "success": True,
+                "column": _column_to_json(column),
+            })
+        else:
+            print(f"Column {args.column_id} updated.")
+            _print_columns_pretty([column], args.project_id)
+        return 0
+
+    if args.columns_command == "delete":
+        await client.delete_column(args.column_id, args.project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "delete",
+                "column_id": args.column_id,
+                "project_id": args.project_id,
+            })
+        else:
+            print(f"Column {args.column_id} deleted from project {args.project_id}.")
+        return 0
+
+    raise ValueError(f"Unknown columns subcommand: {args.columns_command}")
+
+
 async def run_data_cli(args: argparse.Namespace) -> int:
     """Run task/project CLI commands."""
     _apply_v2_auth_rate_limit_workaround()
@@ -1602,6 +1686,8 @@ async def run_data_cli(args: argparse.Namespace) -> int:
                 return await _run_projects_command(client, args)
             if args.command == "folders":
                 return await _run_folders_command(client, args)
+            if args.command == "columns":
+                return await _run_columns_command(client, args)
 
             raise ValueError(f"Unsupported command for data CLI: {args.command}")
 

@@ -13,7 +13,7 @@ and auth implementation.
 | Tasks | Done | Full single-task + batch task command surface implemented |
 | Projects | Done | Full project lifecycle commands implemented |
 | Folders | Done | Folder (project group) lifecycle commands implemented |
-| Columns | Planned | Not yet implemented in CLI commands |
+| Columns | Done | Kanban column lifecycle commands implemented |
 | Tags | Planned | Not yet implemented in CLI commands |
 | Habits | Planned | Not yet implemented in CLI commands |
 | User | Planned | Not yet implemented in CLI commands |
@@ -258,6 +258,15 @@ ticktick folders list
 ticktick folders create "Personal"
 ticktick folders rename FOLDER_ID "Renamed Folder"
 ticktick folders delete FOLDER_ID
+```
+
+## Column Commands
+
+```bash
+ticktick columns list --project PROJECT_ID
+ticktick columns create --project PROJECT_ID "Backlog" [--sort N]
+ticktick columns update COLUMN_ID --project PROJECT_ID [--name "Doing"] [--sort N]
+ticktick columns delete COLUMN_ID --project PROJECT_ID
 ```
 
 ## Project Resolution Rules
