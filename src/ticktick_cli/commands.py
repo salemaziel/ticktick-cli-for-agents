@@ -435,6 +435,22 @@ def _print_batch_result_pretty(action: str, response: Any) -> None:
     print(f"{action}: done")
 
 
+def _as_jsonable(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if hasattr(value, "__dict__") and not isinstance(value, type):
+        return {
+            str(key): _as_jsonable(item)
+            for key, item in vars(value).items()
+            if not key.startswith("_")
+        }
+    if isinstance(value, list):
+        return [_as_jsonable(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _as_jsonable(item) for key, item in value.items()}
+    return value
+
+
 def _task_to_json(task: Any, tz: tzinfo) -> dict[str, Any]:
     start_date = getattr(task, "start_date", None)
     start_local = _datetime_in_timezone(start_date, tz) if start_date else None
@@ -1788,6 +1804,56 @@ async def _run_tags_command(client: Any, args: argparse.Namespace) -> int:
     raise ValueError(f"Unknown tags subcommand: {args.tags_command}")
 
 
+async def _run_user_command(client: Any, args: argparse.Namespace) -> int:
+    json_output = bool(getattr(args, "json", False))
+
+    if args.user_command == "profile":
+        profile = await client.get_profile()
+        payload = _as_jsonable(profile)
+        if json_output:
+            _print_json({"profile": payload})
+        else:
+            print("Profile")
+            for key, value in sorted(dict(payload).items()):
+                print(f"{key}: {value}")
+        return 0
+
+    if args.user_command == "status":
+        status = await client.get_status()
+        payload = _as_jsonable(status)
+        if json_output:
+            _print_json({"status": payload})
+        else:
+            print("Status")
+            for key, value in sorted(dict(payload).items()):
+                print(f"{key}: {value}")
+        return 0
+
+    if args.user_command == "statistics":
+        statistics = await client.get_statistics()
+        payload = _as_jsonable(statistics)
+        if json_output:
+            _print_json({"statistics": payload})
+        else:
+            print("Statistics")
+            for key, value in sorted(dict(payload).items()):
+                print(f"{key}: {value}")
+        return 0
+
+    if args.user_command == "preferences":
+        preferences = await client.get_preferences()
+        payload = _as_jsonable(preferences)
+        if json_output:
+            _print_json({"preferences": payload})
+        else:
+            print("Preferences")
+            for key, value in sorted(dict(payload).items()):
+                print(f"{key}: {value}")
+        return 0
+
+    raise ValueError(f"Unknown user subcommand: {args.user_command}")
+
+
 async def run_data_cli(args: argparse.Namespace) -> int:
     """Run task/project CLI commands."""
     _apply_v2_auth_rate_limit_workaround()
@@ -1807,6 +1873,8 @@ async def run_data_cli(args: argparse.Namespace) -> int:
                 return await _run_columns_command(client, args)
             if args.command == "tags":
                 return await _run_tags_command(client, args)
+            if args.command == "user":
+                return await _run_user_command(client, args)
 
             raise ValueError(f"Unsupported command for data CLI: {args.command}")
 

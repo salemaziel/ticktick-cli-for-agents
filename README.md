@@ -16,7 +16,7 @@ and auth implementation.
 | Columns | Done | Kanban column lifecycle commands implemented |
 | Tags | Done | Full tag lifecycle commands implemented |
 | Habits | Planned | Not yet implemented in CLI commands |
-| User | Planned | Not yet implemented in CLI commands |
+| User | Done | Profile/status/statistics/preferences commands implemented |
 | Focus | Planned | Not yet implemented in CLI commands |
 
 ## Installation
@@ -278,6 +278,15 @@ ticktick tags update TAG_NAME [--color #F18181] [--parent PARENT_TAG | --clear-p
 ticktick tags rename OLD_NAME NEW_NAME
 ticktick tags merge SOURCE_TAG TARGET_TAG
 ticktick tags delete TAG_NAME
+```
+
+## User Commands
+
+```bash
+ticktick user profile
+ticktick user status
+ticktick user statistics
+ticktick user preferences
 ```
 
 ## Project Resolution Rules

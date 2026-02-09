@@ -15,6 +15,7 @@ from ticktick_cli.commands import (
     _run_projects_command,
     _run_tasks_command,
     _run_tags_command,
+    _run_user_command,
 )
 from ticktick_sdk.models import Column, Project, ProjectData, ProjectGroup, Tag, Task
 
@@ -331,6 +332,15 @@ class _FakeClient:
 
     async def get_status(self) -> _Status:
         return _Status(self.inbox_id)
+
+    async def get_profile(self) -> dict:
+        return {"username": "test-user", "email": "test@example.com"}
+
+    async def get_statistics(self) -> dict:
+        return {"completed_tasks": 42, "focus_minutes": 120}
+
+    async def get_preferences(self) -> dict:
+        return {"timeZone": "Europe/Warsaw", "weekStartDay": 1}
 
     async def get_all_folders(self) -> list[ProjectGroup]:
         return self._folders
@@ -1104,6 +1114,32 @@ async def test_tags_full_lifecycle_flow(capsys) -> None:
     delete_output = json.loads(capsys.readouterr().out)
     assert delete_output["action"] == "delete"
     assert client.delete_tag_calls == ["target"]
+
+
+@pytest.mark.asyncio
+async def test_user_commands_return_json(capsys) -> None:
+    client = _FakeClient()
+
+    profile_args = Namespace(command="user", user_command="profile", json=True)
+    status_args = Namespace(command="user", user_command="status", json=True)
+    statistics_args = Namespace(command="user", user_command="statistics", json=True)
+    preferences_args = Namespace(command="user", user_command="preferences", json=True)
+
+    assert await _run_user_command(client, profile_args) == 0
+    profile_output = json.loads(capsys.readouterr().out)
+    assert profile_output["profile"]["username"] == "test-user"
+
+    assert await _run_user_command(client, status_args) == 0
+    status_output = json.loads(capsys.readouterr().out)
+    assert status_output["status"]["inbox_id"] == "inbox-default"
+
+    assert await _run_user_command(client, statistics_args) == 0
+    statistics_output = json.loads(capsys.readouterr().out)
+    assert statistics_output["statistics"]["completed_tasks"] == 42
+
+    assert await _run_user_command(client, preferences_args) == 0
+    preferences_output = json.loads(capsys.readouterr().out)
+    assert preferences_output["preferences"]["timeZone"] == "Europe/Warsaw"
 
 
 @pytest.mark.asyncio

@@ -855,4 +855,39 @@ Examples:
     tags_merge_parser.add_argument("target", type=str, help="Target tag name")
     _add_json_argument(tags_merge_parser, help_text="Output result as JSON.")
 
+    user_parser = subparsers.add_parser(
+        "user",
+        help="User/account information",
+        description="User profile and account information commands.",
+    )
+    user_subparsers = user_parser.add_subparsers(
+        dest="user_command",
+        metavar="<action>",
+        required=True,
+    )
+
+    user_profile_parser = user_subparsers.add_parser(
+        "profile",
+        help="Get user profile",
+    )
+    _add_json_argument(user_profile_parser, help_text="Output profile as JSON.")
+
+    user_status_parser = user_subparsers.add_parser(
+        "status",
+        help="Get account status/subscription details",
+    )
+    _add_json_argument(user_status_parser, help_text="Output status as JSON.")
+
+    user_stats_parser = user_subparsers.add_parser(
+        "statistics",
+        help="Get productivity statistics",
+    )
+    _add_json_argument(user_stats_parser, help_text="Output statistics as JSON.")
+
+    user_preferences_parser = user_subparsers.add_parser(
+        "preferences",
+        help="Get user preferences/settings",
+    )
+    _add_json_argument(user_preferences_parser, help_text="Output preferences as JSON.")
+
     return parser
