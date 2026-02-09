@@ -9,11 +9,12 @@ from datetime import UTC, datetime
 import pytest
 
 from ticktick_cli.commands import (
+    _run_folders_command,
     _patch_v2_session_handler_for_429,
     _run_projects_command,
     _run_tasks_command,
 )
-from ticktick_sdk.models import Column, Project, ProjectData, Task
+from ticktick_sdk.models import Column, Project, ProjectData, ProjectGroup, Task
 
 
 class _Status:
@@ -58,6 +59,11 @@ class _FakeClient:
         self.create_project_calls: list[dict] = []
         self.update_project_calls: list[dict] = []
         self.delete_project_calls: list[str] = []
+        self._folders: list[ProjectGroup] = []
+        self._folders_by_id: dict[str, ProjectGroup] = {}
+        self.create_folder_calls: list[str] = []
+        self.rename_folder_calls: list[tuple[str, str]] = []
+        self.delete_folder_calls: list[str] = []
 
     async def get_all_tasks(self) -> list[Task]:
         return self._tasks
@@ -312,6 +318,35 @@ class _FakeClient:
 
     async def get_status(self) -> _Status:
         return _Status(self.inbox_id)
+
+    async def get_all_folders(self) -> list[ProjectGroup]:
+        return self._folders
+
+    async def create_folder(self, name: str) -> ProjectGroup:
+        self.create_folder_calls.append(name)
+        folder = ProjectGroup(
+            id=f"folder-{len(self._folders) + 1}",
+            name=name,
+            view_mode="list",
+            sort_order=len(self._folders),
+            deleted=0,
+            show_all=True,
+        )
+        self._folders.append(folder)
+        self._folders_by_id[folder.id] = folder
+        return folder
+
+    async def rename_folder(self, folder_id: str, name: str) -> ProjectGroup:
+        self.rename_folder_calls.append((folder_id, name))
+        folder = self._folders_by_id[folder_id]
+        folder.name = name
+        self._folders_by_id[folder_id] = folder
+        return folder
+
+    async def delete_folder(self, folder_id: str) -> None:
+        self.delete_folder_calls.append(folder_id)
+        self._folders_by_id.pop(folder_id, None)
+        self._folders = [folder for folder in self._folders if folder.id != folder_id]
 
 
 @pytest.mark.asyncio
@@ -734,6 +769,60 @@ async def test_projects_delete_invokes_client(capsys) -> None:
     output = json.loads(capsys.readouterr().out)
     assert output["success"] is True
     assert output["action"] == "delete"
+
+
+@pytest.mark.asyncio
+async def test_folders_create_list_rename_delete_flow(capsys) -> None:
+    client = _FakeClient()
+
+    create_args = Namespace(
+        command="folders",
+        folders_command="create",
+        name="Personal",
+        json=True,
+    )
+    create_exit = await _run_folders_command(client, create_args)
+    assert create_exit == 0
+    created_output = json.loads(capsys.readouterr().out)
+    folder_id = created_output["folder"]["id"]
+    assert created_output["folder"]["name"] == "Personal"
+
+    list_args = Namespace(
+        command="folders",
+        folders_command="list",
+        json=True,
+    )
+    list_exit = await _run_folders_command(client, list_args)
+    assert list_exit == 0
+    list_output = json.loads(capsys.readouterr().out)
+    assert list_output["count"] == 1
+    assert list_output["folders"][0]["id"] == folder_id
+
+    rename_args = Namespace(
+        command="folders",
+        folders_command="rename",
+        folder_id=folder_id,
+        name="Personal Updated",
+        json=True,
+    )
+    rename_exit = await _run_folders_command(client, rename_args)
+    assert rename_exit == 0
+    rename_output = json.loads(capsys.readouterr().out)
+    assert rename_output["folder"]["name"] == "Personal Updated"
+    assert client.rename_folder_calls == [(folder_id, "Personal Updated")]
+
+    delete_args = Namespace(
+        command="folders",
+        folders_command="delete",
+        folder_id=folder_id,
+        json=True,
+    )
+    delete_exit = await _run_folders_command(client, delete_args)
+    assert delete_exit == 0
+    delete_output = json.loads(capsys.readouterr().out)
+    assert delete_output["success"] is True
+    assert delete_output["action"] == "delete"
+    assert client.delete_folder_calls == [folder_id]
 
 
 @pytest.mark.asyncio

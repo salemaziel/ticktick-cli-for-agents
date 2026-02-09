@@ -522,6 +522,21 @@ def _project_data_to_json(project_data: Any, current_project_id: str, tz: tzinfo
     }
 
 
+def _folder_to_json(folder: Any) -> dict[str, Any]:
+    return {
+        "id": getattr(folder, "id", None),
+        "name": getattr(folder, "name", None),
+        "view_mode": getattr(folder, "view_mode", None),
+        "sort_option": getattr(folder, "sort_option", None),
+        "sort_order": getattr(folder, "sort_order", None),
+        "sort_type": getattr(folder, "sort_type", None),
+        "deleted": getattr(folder, "deleted", None),
+        "show_all": getattr(folder, "show_all", None),
+        "team_id": getattr(folder, "team_id", None),
+        "user_id": getattr(folder, "user_id", None),
+    }
+
+
 def _print_task_list_pretty(
     tasks: list[Any],
     project_id: str | None,
@@ -657,6 +672,25 @@ def _print_project_data_pretty(
             str(getattr(column, "sort_order", "") or ""),
         ])
     _print_table(["ID", "Name", "Sort"], rows)
+
+
+def _print_folders_pretty(folders: list[Any]) -> None:
+    print(f"Folders ({len(folders)})")
+    if not folders:
+        print("No folders found.")
+        return
+
+    rows: list[list[str]] = []
+    for folder in folders:
+        rows.append([
+            str(getattr(folder, "id", "")),
+            _truncate(str(getattr(folder, "name", "") or ""), 42),
+            str(getattr(folder, "view_mode", "") or "-"),
+            str(getattr(folder, "sort_order", "") or "-"),
+            "yes" if bool(getattr(folder, "deleted", False)) else "no",
+        ])
+
+    _print_table(["ID", "Name", "View", "Sort", "Deleted"], rows)
 
 
 def _task_sort_key(task: Any, tz: tzinfo) -> tuple[bool, str, int, str]:
@@ -1499,6 +1533,60 @@ async def _run_projects_command(client: Any, args: argparse.Namespace) -> int:
     raise ValueError(f"Unknown projects subcommand: {args.projects_command}")
 
 
+async def _run_folders_command(client: Any, args: argparse.Namespace) -> int:
+    json_output = bool(getattr(args, "json", False))
+
+    if args.folders_command == "list":
+        folders = await client.get_all_folders()
+        folders_sorted = sorted(folders, key=lambda folder: str(getattr(folder, "name", "")).casefold())
+        if json_output:
+            _print_json({
+                "count": len(folders_sorted),
+                "folders": [_folder_to_json(folder) for folder in folders_sorted],
+            })
+        else:
+            _print_folders_pretty(folders_sorted)
+        return 0
+
+    if args.folders_command == "create":
+        folder = await client.create_folder(args.name)
+        if json_output:
+            _print_json({
+                "success": True,
+                "folder": _folder_to_json(folder),
+            })
+        else:
+            print(f"Folder created: {getattr(folder, 'id', '')}")
+            _print_folders_pretty([folder])
+        return 0
+
+    if args.folders_command == "rename":
+        folder = await client.rename_folder(args.folder_id, args.name)
+        if json_output:
+            _print_json({
+                "success": True,
+                "folder": _folder_to_json(folder),
+            })
+        else:
+            print(f"Folder {args.folder_id} renamed.")
+            _print_folders_pretty([folder])
+        return 0
+
+    if args.folders_command == "delete":
+        await client.delete_folder(args.folder_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "delete",
+                "folder_id": args.folder_id,
+            })
+        else:
+            print(f"Folder {args.folder_id} deleted.")
+        return 0
+
+    raise ValueError(f"Unknown folders subcommand: {args.folders_command}")
+
+
 async def run_data_cli(args: argparse.Namespace) -> int:
     """Run task/project CLI commands."""
     _apply_v2_auth_rate_limit_workaround()
@@ -1512,6 +1600,8 @@ async def run_data_cli(args: argparse.Namespace) -> int:
                 return await _run_tasks_command(client, args)
             if args.command == "projects":
                 return await _run_projects_command(client, args)
+            if args.command == "folders":
+                return await _run_folders_command(client, args)
 
             raise ValueError(f"Unsupported command for data CLI: {args.command}")
 

@@ -708,4 +708,43 @@ Examples:
     projects_delete_parser.add_argument("project_id", type=str, help="Project ID")
     _add_json_argument(projects_delete_parser, help_text="Output result as JSON.")
 
+    folders_parser = subparsers.add_parser(
+        "folders",
+        help="Manage folders (project groups)",
+        description="Folder (project group) management commands.",
+    )
+    folders_subparsers = folders_parser.add_subparsers(
+        dest="folders_command",
+        metavar="<action>",
+        required=True,
+    )
+
+    folders_list_parser = folders_subparsers.add_parser(
+        "list",
+        help="List folders",
+    )
+    _add_json_argument(folders_list_parser, help_text="Output folders as JSON.")
+
+    folders_create_parser = folders_subparsers.add_parser(
+        "create",
+        help="Create a folder",
+    )
+    folders_create_parser.add_argument("name", type=str, help="Folder name")
+    _add_json_argument(folders_create_parser, help_text="Output created folder as JSON.")
+
+    folders_rename_parser = folders_subparsers.add_parser(
+        "rename",
+        help="Rename a folder",
+    )
+    folders_rename_parser.add_argument("folder_id", type=str, help="Folder ID")
+    folders_rename_parser.add_argument("name", type=str, help="New folder name")
+    _add_json_argument(folders_rename_parser, help_text="Output updated folder as JSON.")
+
+    folders_delete_parser = folders_subparsers.add_parser(
+        "delete",
+        help="Delete a folder",
+    )
+    folders_delete_parser.add_argument("folder_id", type=str, help="Folder ID")
+    _add_json_argument(folders_delete_parser, help_text="Output result as JSON.")
+
     return parser

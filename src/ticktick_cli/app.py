@@ -32,7 +32,7 @@ def main() -> int | NoReturn:
     if args.command == "auth":
         return run_auth(manual=args.manual, output_json=args.json)
 
-    if args.command in {"tasks", "projects"}:
+    if args.command in {"tasks", "projects", "folders"}:
         return asyncio.run(run_data_cli(args))
 
     parser.print_help()

@@ -12,7 +12,7 @@ and auth implementation.
 |------|--------|-------|
 | Tasks | Done | Full single-task + batch task command surface implemented |
 | Projects | Done | Full project lifecycle commands implemented |
-| Folders | Planned | Not yet implemented in CLI commands |
+| Folders | Done | Folder (project group) lifecycle commands implemented |
 | Columns | Planned | Not yet implemented in CLI commands |
 | Tags | Planned | Not yet implemented in CLI commands |
 | Habits | Planned | Not yet implemented in CLI commands |
@@ -249,6 +249,15 @@ ticktick projects update PROJECT_ID \
   [--folder FOLDER_ID | --remove-folder]
 
 ticktick projects delete PROJECT_ID
+```
+
+## Folder Commands
+
+```bash
+ticktick folders list
+ticktick folders create "Personal"
+ticktick folders rename FOLDER_ID "Renamed Folder"
+ticktick folders delete FOLDER_ID
 ```
 
 ## Project Resolution Rules
