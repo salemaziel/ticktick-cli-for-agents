@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from argparse import Namespace
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,6 +13,7 @@ from ticktick_cli.commands import (
     _run_columns_command,
     _run_focus_command,
     _run_folders_command,
+    _run_habits_command,
     _patch_v2_session_handler_for_429,
     _run_projects_command,
     _run_tasks_command,
@@ -79,6 +81,14 @@ class _FakeClient:
         self.delete_tag_calls: list[str] = []
         self.rename_tag_calls: list[tuple[str, str]] = []
         self.merge_tags_calls: list[tuple[str, str]] = []
+        self._habits: dict[str, SimpleNamespace] = {}
+        self.create_habit_calls: list[dict] = []
+        self.update_habit_calls: list[dict] = []
+        self.delete_habit_calls: list[str] = []
+        self.checkin_habit_calls: list[dict] = []
+        self.archive_habit_calls: list[str] = []
+        self.unarchive_habit_calls: list[str] = []
+        self.checkin_habits_calls: list[list[dict]] = []
 
     async def get_all_tasks(self) -> list[Task]:
         return self._tasks
@@ -363,6 +373,89 @@ class _FakeClient:
     ) -> dict[str, int]:
         del start_date, end_date, days
         return {"work": 1500, "study": 2400}
+
+    async def get_all_habits(self) -> list[SimpleNamespace]:
+        return list(self._habits.values())
+
+    async def get_habit(self, habit_id: str) -> SimpleNamespace:
+        return self._habits[habit_id]
+
+    async def get_habit_sections(self) -> list[dict]:
+        return [
+            {"id": "_morning", "name": "_morning"},
+            {"id": "_night", "name": "_night"},
+        ]
+
+    async def get_habit_preferences(self) -> dict:
+        return {"showInCalendar": True, "enabled": True}
+
+    async def create_habit(self, name: str, **kwargs) -> SimpleNamespace:
+        self.create_habit_calls.append({"name": name, **kwargs})
+        habit_id = f"habit-{len(self._habits) + 1}"
+        habit = SimpleNamespace(
+            id=habit_id,
+            name=name,
+            habit_type=kwargs.get("habit_type", "Boolean"),
+            goal=kwargs.get("goal", 1.0),
+            status=0,
+            total_checkins=0,
+        )
+        self._habits[habit_id] = habit
+        return habit
+
+    async def update_habit(self, habit_id: str, **kwargs) -> SimpleNamespace:
+        self.update_habit_calls.append({"habit_id": habit_id, **kwargs})
+        habit = self._habits[habit_id]
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(habit, key, value)
+        self._habits[habit_id] = habit
+        return habit
+
+    async def delete_habit(self, habit_id: str) -> None:
+        self.delete_habit_calls.append(habit_id)
+        self._habits.pop(habit_id, None)
+
+    async def checkin_habit(self, habit_id: str, value: float = 1.0, checkin_date=None) -> SimpleNamespace:
+        self.checkin_habit_calls.append({
+            "habit_id": habit_id,
+            "value": value,
+            "checkin_date": checkin_date,
+        })
+        habit = self._habits[habit_id]
+        habit.total_checkins = getattr(habit, "total_checkins", 0) + 1
+        return habit
+
+    async def archive_habit(self, habit_id: str) -> SimpleNamespace:
+        self.archive_habit_calls.append(habit_id)
+        habit = self._habits[habit_id]
+        habit.status = 2
+        return habit
+
+    async def unarchive_habit(self, habit_id: str) -> SimpleNamespace:
+        self.unarchive_habit_calls.append(habit_id)
+        habit = self._habits[habit_id]
+        habit.status = 0
+        return habit
+
+    async def get_habit_checkins(self, habit_ids: list[str], after_stamp: int = 0) -> dict:
+        del after_stamp
+        return {
+            habit_id: [{"habit_id": habit_id, "checkin_stamp": 20260209, "value": 1.0}]
+            for habit_id in habit_ids
+        }
+
+    async def checkin_habits(self, checkins: list[dict]) -> dict:
+        self.checkin_habits_calls.append(checkins)
+        result: dict[str, SimpleNamespace] = {}
+        for item in checkins:
+            habit = await self.checkin_habit(
+                item["habit_id"],
+                value=item.get("value", 1.0),
+                checkin_date=item.get("checkin_date"),
+            )
+            result[item["habit_id"]] = habit
+        return result
 
     async def get_all_folders(self) -> list[ProjectGroup]:
         return self._folders
@@ -1201,6 +1294,141 @@ async def test_focus_commands_return_json() -> None:
     assert by_tag_exit == 0
     assert by_tag_payload["tag_count"] == 2
     assert by_tag_payload["focus_by_tag"]["work"] == 1500
+
+
+@pytest.mark.asyncio
+async def test_habits_lifecycle_and_checkins(capsys, tmp_path) -> None:
+    client = _FakeClient()
+
+    create_args = Namespace(
+        command="habits",
+        habits_command="create",
+        name="Read 20 pages",
+        habit_type="Boolean",
+        goal=1.0,
+        step=0.0,
+        unit="Count",
+        icon="habit_daily_check_in",
+        color="#97E38B",
+        section_id=None,
+        repeat_rule="RRULE:FREQ=DAILY",
+        reminders="08:00,20:00",
+        target_days=30,
+        encouragement="Keep going",
+        json=True,
+    )
+    create_exit = await _run_habits_command(client, create_args)
+    assert create_exit == 0
+    create_payload = json.loads(capsys.readouterr().out)
+    habit_id = create_payload["habit"]["id"]
+    assert create_payload["habit"]["name"] == "Read 20 pages"
+
+    list_args = Namespace(command="habits", habits_command="list", json=True)
+    list_exit = await _run_habits_command(client, list_args)
+    assert list_exit == 0
+    list_payload = json.loads(capsys.readouterr().out)
+    assert list_payload["count"] == 1
+
+    get_args = Namespace(command="habits", habits_command="get", habit_id=habit_id, json=True)
+    get_exit = await _run_habits_command(client, get_args)
+    assert get_exit == 0
+    get_payload = json.loads(capsys.readouterr().out)
+    assert get_payload["habit"]["id"] == habit_id
+
+    sections_args = Namespace(command="habits", habits_command="sections", json=True)
+    sections_exit = await _run_habits_command(client, sections_args)
+    assert sections_exit == 0
+    sections_payload = json.loads(capsys.readouterr().out)
+    assert sections_payload["count"] == 2
+
+    preferences_args = Namespace(command="habits", habits_command="preferences", json=True)
+    preferences_exit = await _run_habits_command(client, preferences_args)
+    assert preferences_exit == 0
+    preferences_payload = json.loads(capsys.readouterr().out)
+    assert preferences_payload["preferences"]["enabled"] is True
+
+    update_args = Namespace(
+        command="habits",
+        habits_command="update",
+        habit_id=habit_id,
+        name="Read 30 pages",
+        goal=None,
+        step=None,
+        unit=None,
+        icon=None,
+        color=None,
+        section_id=None,
+        repeat_rule=None,
+        reminders=None,
+        target_days=None,
+        encouragement=None,
+        json=True,
+    )
+    update_exit = await _run_habits_command(client, update_args)
+    assert update_exit == 0
+    update_payload = json.loads(capsys.readouterr().out)
+    assert update_payload["habit"]["name"] == "Read 30 pages"
+
+    checkin_args = Namespace(
+        command="habits",
+        habits_command="checkin",
+        habit_id=habit_id,
+        value=1.0,
+        checkin_date="2026-02-09",
+        json=True,
+    )
+    checkin_exit = await _run_habits_command(client, checkin_args)
+    assert checkin_exit == 0
+    checkin_payload = json.loads(capsys.readouterr().out)
+    assert checkin_payload["habit"]["total_checkins"] == 1
+
+    checkins_args = Namespace(
+        command="habits",
+        habits_command="checkins",
+        habit_ids=[habit_id],
+        after_stamp=0,
+        json=True,
+    )
+    checkins_exit = await _run_habits_command(client, checkins_args)
+    assert checkins_exit == 0
+    checkins_payload = json.loads(capsys.readouterr().out)
+    assert checkins_payload["habit_count"] == 1
+    assert habit_id in checkins_payload["checkins"]
+
+    batch_file = tmp_path / "habit_batch_checkin.json"
+    batch_file.write_text(
+        json.dumps([{"habit_id": habit_id, "value": 1.0, "checkin_date": "2026-02-10"}]),
+        encoding="utf-8",
+    )
+    batch_args = Namespace(
+        command="habits",
+        habits_command="batch-checkin",
+        file=str(batch_file),
+        json=True,
+    )
+    batch_exit = await _run_habits_command(client, batch_args)
+    assert batch_exit == 0
+    batch_payload = json.loads(capsys.readouterr().out)
+    assert batch_payload["success"] is True
+    assert batch_payload["count"] == 1
+
+    archive_args = Namespace(command="habits", habits_command="archive", habit_id=habit_id, json=True)
+    archive_exit = await _run_habits_command(client, archive_args)
+    assert archive_exit == 0
+    archive_payload = json.loads(capsys.readouterr().out)
+    assert archive_payload["habit"]["status"] == 2
+
+    unarchive_args = Namespace(command="habits", habits_command="unarchive", habit_id=habit_id, json=True)
+    unarchive_exit = await _run_habits_command(client, unarchive_args)
+    assert unarchive_exit == 0
+    unarchive_payload = json.loads(capsys.readouterr().out)
+    assert unarchive_payload["habit"]["status"] == 0
+
+    delete_args = Namespace(command="habits", habits_command="delete", habit_id=habit_id, json=True)
+    delete_exit = await _run_habits_command(client, delete_args)
+    assert delete_exit == 0
+    delete_payload = json.loads(capsys.readouterr().out)
+    assert delete_payload["action"] == "delete"
 
 
 @pytest.mark.asyncio

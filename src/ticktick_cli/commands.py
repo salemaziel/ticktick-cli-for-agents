@@ -574,6 +574,11 @@ def _tag_to_json(tag: Any) -> dict[str, Any]:
     }
 
 
+def _habit_to_json(habit: Any) -> dict[str, Any]:
+    payload = _as_jsonable(habit)
+    return dict(payload) if isinstance(payload, dict) else {"value": payload}
+
+
 def _print_task_list_pretty(
     tasks: list[Any],
     project_id: str | None,
@@ -762,6 +767,24 @@ def _print_tags_pretty(tags: list[Any]) -> None:
             str(getattr(tag, "parent", "") or "-"),
         ])
     _print_table(["Name", "Label", "Color", "Parent"], rows)
+
+
+def _print_habits_pretty(habits: list[Any]) -> None:
+    print(f"Habits ({len(habits)})")
+    if not habits:
+        print("No habits found.")
+        return
+
+    rows: list[list[str]] = []
+    for habit in habits:
+        rows.append([
+            str(getattr(habit, "id", "") or ""),
+            _truncate(str(getattr(habit, "name", "") or ""), 30),
+            str(getattr(habit, "habit_type", "") or getattr(habit, "type", "") or "-"),
+            str(getattr(habit, "goal", "") or "-"),
+            str(getattr(habit, "status", "") or "-"),
+        ])
+    _print_table(["ID", "Name", "Type", "Goal", "Status"], rows)
 
 
 def _task_sort_key(task: Any, tz: tzinfo) -> tuple[bool, str, int, str]:
@@ -1915,6 +1938,204 @@ async def _run_focus_command(client: Any, args: argparse.Namespace) -> int:
     raise ValueError(f"Unknown focus subcommand: {args.focus_command}")
 
 
+async def _run_habits_command(client: Any, args: argparse.Namespace) -> int:
+    json_output = bool(getattr(args, "json", False))
+
+    if args.habits_command == "list":
+        habits = await client.get_all_habits()
+        habits_sorted = sorted(habits, key=lambda habit: str(getattr(habit, "name", "")).casefold())
+        if json_output:
+            _print_json({
+                "count": len(habits_sorted),
+                "habits": [_habit_to_json(habit) for habit in habits_sorted],
+            })
+        else:
+            _print_habits_pretty(habits_sorted)
+        return 0
+
+    if args.habits_command == "get":
+        habit = await client.get_habit(args.habit_id)
+        if json_output:
+            _print_json({
+                "habit": _habit_to_json(habit),
+            })
+        else:
+            payload = _habit_to_json(habit)
+            print("Habit")
+            for key, value in sorted(payload.items()):
+                print(f"{key}: {value}")
+        return 0
+
+    if args.habits_command == "sections":
+        sections = await client.get_habit_sections()
+        payload = _as_jsonable(sections)
+        if json_output:
+            _print_json({
+                "count": len(payload) if isinstance(payload, list) else 0,
+                "sections": payload,
+            })
+        else:
+            print(f"Habit sections ({len(payload) if isinstance(payload, list) else 0})")
+            if isinstance(payload, list):
+                for section in payload:
+                    print(section)
+        return 0
+
+    if args.habits_command == "preferences":
+        preferences = await client.get_habit_preferences()
+        payload = _as_jsonable(preferences)
+        if json_output:
+            _print_json({"preferences": payload})
+        else:
+            print("Habit preferences")
+            for key, value in sorted(dict(payload).items()):
+                print(f"{key}: {value}")
+        return 0
+
+    if args.habits_command == "create":
+        reminders = _parse_csv_list(args.reminders)
+        habit = await client.create_habit(
+            name=args.name,
+            habit_type=args.habit_type,
+            goal=args.goal,
+            step=args.step,
+            unit=args.unit,
+            icon=args.icon,
+            color=args.color,
+            section_id=args.section_id,
+            repeat_rule=args.repeat_rule,
+            reminders=reminders,
+            target_days=args.target_days,
+            encouragement=args.encouragement,
+        )
+        if json_output:
+            _print_json({"success": True, "habit": _habit_to_json(habit)})
+        else:
+            print(f"Habit created: {getattr(habit, 'id', '')}")
+            _print_habits_pretty([habit])
+        return 0
+
+    if args.habits_command == "update":
+        reminders = _parse_csv_list(args.reminders) if args.reminders is not None else None
+        if all(
+            field is None
+            for field in [
+                args.name,
+                args.goal,
+                args.step,
+                args.unit,
+                args.icon,
+                args.color,
+                args.section_id,
+                args.repeat_rule,
+                reminders,
+                args.target_days,
+                args.encouragement,
+            ]
+        ):
+            raise ValueError("No update fields provided.")
+
+        habit = await client.update_habit(
+            habit_id=args.habit_id,
+            name=args.name,
+            goal=args.goal,
+            step=args.step,
+            unit=args.unit,
+            icon=args.icon,
+            color=args.color,
+            section_id=args.section_id,
+            repeat_rule=args.repeat_rule,
+            reminders=reminders,
+            target_days=args.target_days,
+            encouragement=args.encouragement,
+        )
+        if json_output:
+            _print_json({"success": True, "habit": _habit_to_json(habit)})
+        else:
+            print(f"Habit {args.habit_id} updated.")
+            _print_habits_pretty([habit])
+        return 0
+
+    if args.habits_command == "delete":
+        await client.delete_habit(args.habit_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "delete",
+                "habit_id": args.habit_id,
+            })
+        else:
+            print(f"Habit {args.habit_id} deleted.")
+        return 0
+
+    if args.habits_command == "checkin":
+        checkin_date = (
+            _parse_iso_date(args.checkin_date, flag_name="--date")
+            if args.checkin_date
+            else None
+        )
+        habit = await client.checkin_habit(
+            habit_id=args.habit_id,
+            value=args.value,
+            checkin_date=checkin_date,
+        )
+        if json_output:
+            _print_json({"success": True, "habit": _habit_to_json(habit)})
+        else:
+            print(f"Habit {args.habit_id} checked in.")
+            _print_habits_pretty([habit])
+        return 0
+
+    if args.habits_command == "batch-checkin":
+        checkins = _load_json_array_from_file(args.file)
+        result = await client.checkin_habits(checkins)
+        payload = _as_jsonable(result)
+        if json_output:
+            _print_json({
+                "success": True,
+                "count": len(payload) if isinstance(payload, dict) else 0,
+                "result": payload,
+            })
+        else:
+            print(f"Batch habit check-ins: {len(payload) if isinstance(payload, dict) else 0}")
+            print(payload)
+        return 0
+
+    if args.habits_command == "archive":
+        habit = await client.archive_habit(args.habit_id)
+        if json_output:
+            _print_json({"success": True, "habit": _habit_to_json(habit)})
+        else:
+            print(f"Habit {args.habit_id} archived.")
+            _print_habits_pretty([habit])
+        return 0
+
+    if args.habits_command == "unarchive":
+        habit = await client.unarchive_habit(args.habit_id)
+        if json_output:
+            _print_json({"success": True, "habit": _habit_to_json(habit)})
+        else:
+            print(f"Habit {args.habit_id} unarchived.")
+            _print_habits_pretty([habit])
+        return 0
+
+    if args.habits_command == "checkins":
+        checkins = await client.get_habit_checkins(args.habit_ids, after_stamp=args.after_stamp)
+        payload = _as_jsonable(checkins)
+        if json_output:
+            _print_json({
+                "habit_count": len(payload) if isinstance(payload, dict) else 0,
+                "after_stamp": args.after_stamp,
+                "checkins": payload,
+            })
+        else:
+            print(f"Habit checkins (after stamp={args.after_stamp})")
+            print(payload)
+        return 0
+
+    raise ValueError(f"Unknown habits subcommand: {args.habits_command}")
+
+
 async def run_data_cli(args: argparse.Namespace) -> int:
     """Run task/project CLI commands."""
     _apply_v2_auth_rate_limit_workaround()
@@ -1938,6 +2159,8 @@ async def run_data_cli(args: argparse.Namespace) -> int:
                 return await _run_user_command(client, args)
             if args.command == "focus":
                 return await _run_focus_command(client, args)
+            if args.command == "habits":
+                return await _run_habits_command(client, args)
 
             raise ValueError(f"Unsupported command for data CLI: {args.command}")
 

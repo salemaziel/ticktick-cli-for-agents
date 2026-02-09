@@ -15,7 +15,7 @@ and auth implementation.
 | Folders | Done | Folder (project group) lifecycle commands implemented |
 | Columns | Done | Kanban column lifecycle commands implemented |
 | Tags | Done | Full tag lifecycle commands implemented |
-| Habits | Planned | Not yet implemented in CLI commands |
+| Habits | Done | Full habit management and check-in commands implemented |
 | User | Done | Profile/status/statistics/preferences commands implemented |
 | Focus | Done | Focus heatmap and tag analytics commands implemented |
 
@@ -294,6 +294,38 @@ ticktick user preferences
 ```bash
 ticktick focus heatmap [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N]
 ticktick focus by-tag [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N]
+```
+
+## Habit Commands
+
+```bash
+ticktick habits list
+ticktick habits get HABIT_ID
+ticktick habits sections
+ticktick habits preferences
+
+ticktick habits create "Drink Water" \
+  [--type Boolean|Real] \
+  [--goal 1.0] \
+  [--step 0.0] \
+  [--unit Count] \
+  [--icon habit_daily_check_in] \
+  [--color #97E38B] \
+  [--section SECTION_ID] \
+  [--repeat RRULE] \
+  [--reminders 08:00,20:00] \
+  [--target-days 30] \
+  [--encouragement "Keep going"]
+
+ticktick habits update HABIT_ID [--name ...] [--goal ...] [--step ...] [--unit ...] [--icon ...] [--color ...] [--section ...] [--repeat ...] [--reminders ...] [--target-days ...] [--encouragement ...]
+ticktick habits delete HABIT_ID
+
+ticktick habits checkin HABIT_ID [--value 1.0] [--date YYYY-MM-DD]
+ticktick habits batch-checkin --file checkins.json
+ticktick habits checkins HABIT_ID [HABIT_ID ...] [--after-stamp YYYYMMDD]
+
+ticktick habits archive HABIT_ID
+ticktick habits unarchive HABIT_ID
 ```
 
 ## Project Resolution Rules

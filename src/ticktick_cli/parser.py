@@ -919,4 +919,132 @@ Examples:
     focus_by_tag_parser.add_argument("--days", type=int, default=30, help="Days lookback when --from/--to not set.")
     _add_json_argument(focus_by_tag_parser, help_text="Output focus-by-tag data as JSON.")
 
+    habits_parser = subparsers.add_parser(
+        "habits",
+        help="Manage habits",
+        description="Habit management and check-in commands.",
+    )
+    habits_subparsers = habits_parser.add_subparsers(
+        dest="habits_command",
+        metavar="<action>",
+        required=True,
+    )
+
+    habits_list_parser = habits_subparsers.add_parser(
+        "list",
+        help="List habits",
+    )
+    _add_json_argument(habits_list_parser, help_text="Output habits as JSON.")
+
+    habits_get_parser = habits_subparsers.add_parser(
+        "get",
+        help="Get habit by ID",
+    )
+    habits_get_parser.add_argument("habit_id", type=str, help="Habit ID")
+    _add_json_argument(habits_get_parser, help_text="Output habit as JSON.")
+
+    habits_sections_parser = habits_subparsers.add_parser(
+        "sections",
+        help="List habit sections",
+    )
+    _add_json_argument(habits_sections_parser, help_text="Output sections as JSON.")
+
+    habits_preferences_parser = habits_subparsers.add_parser(
+        "preferences",
+        help="Get habit preferences",
+    )
+    _add_json_argument(habits_preferences_parser, help_text="Output preferences as JSON.")
+
+    habits_create_parser = habits_subparsers.add_parser(
+        "create",
+        help="Create a habit",
+    )
+    habits_create_parser.add_argument("name", type=str, help="Habit name")
+    habits_create_parser.add_argument("--type", dest="habit_type", choices=["Boolean", "Real"], default="Boolean", help="Habit type.")
+    habits_create_parser.add_argument("--goal", type=float, default=1.0, help="Goal value.")
+    habits_create_parser.add_argument("--step", type=float, default=0.0, help="Step value.")
+    habits_create_parser.add_argument("--unit", type=str, default="Count", help="Unit label.")
+    habits_create_parser.add_argument("--icon", type=str, default="habit_daily_check_in", help="Habit icon key.")
+    habits_create_parser.add_argument("--color", type=str, default="#97E38B", help="Hex color.")
+    habits_create_parser.add_argument("--section", dest="section_id", type=str, default=None, help="Section ID.")
+    habits_create_parser.add_argument(
+        "--repeat",
+        dest="repeat_rule",
+        type=str,
+        default="RRULE:FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH,FR,SA",
+        help="Repeat rule (RRULE).",
+    )
+    habits_create_parser.add_argument("--reminders", type=str, default=None, help="Comma-separated reminder times (HH:MM).")
+    habits_create_parser.add_argument("--target-days", type=int, default=0, help="Target days.")
+    habits_create_parser.add_argument("--encouragement", type=str, default="", help="Encouragement text.")
+    _add_json_argument(habits_create_parser, help_text="Output created habit as JSON.")
+
+    habits_update_parser = habits_subparsers.add_parser(
+        "update",
+        help="Update a habit",
+    )
+    habits_update_parser.add_argument("habit_id", type=str, help="Habit ID")
+    habits_update_parser.add_argument("--name", type=str, default=None, help="New habit name.")
+    habits_update_parser.add_argument("--goal", type=float, default=None, help="New goal value.")
+    habits_update_parser.add_argument("--step", type=float, default=None, help="New step value.")
+    habits_update_parser.add_argument("--unit", type=str, default=None, help="New unit.")
+    habits_update_parser.add_argument("--icon", type=str, default=None, help="New icon key.")
+    habits_update_parser.add_argument("--color", type=str, default=None, help="New hex color.")
+    habits_update_parser.add_argument("--section", dest="section_id", type=str, default=None, help="New section ID.")
+    habits_update_parser.add_argument("--repeat", dest="repeat_rule", type=str, default=None, help="New repeat RRULE.")
+    habits_update_parser.add_argument("--reminders", type=str, default=None, help="New comma-separated reminder times.")
+    habits_update_parser.add_argument("--target-days", type=int, default=None, help="New target days.")
+    habits_update_parser.add_argument("--encouragement", type=str, default=None, help="New encouragement text.")
+    _add_json_argument(habits_update_parser, help_text="Output updated habit as JSON.")
+
+    habits_delete_parser = habits_subparsers.add_parser(
+        "delete",
+        help="Delete a habit",
+    )
+    habits_delete_parser.add_argument("habit_id", type=str, help="Habit ID")
+    _add_json_argument(habits_delete_parser, help_text="Output result as JSON.")
+
+    habits_checkin_parser = habits_subparsers.add_parser(
+        "checkin",
+        help="Check in a habit",
+    )
+    habits_checkin_parser.add_argument("habit_id", type=str, help="Habit ID")
+    habits_checkin_parser.add_argument("--value", type=float, default=1.0, help="Check-in value.")
+    habits_checkin_parser.add_argument("--date", dest="checkin_date", type=str, default=None, help="Check-in date (YYYY-MM-DD).")
+    _add_json_argument(habits_checkin_parser, help_text="Output updated habit as JSON.")
+
+    habits_batch_checkin_parser = habits_subparsers.add_parser(
+        "batch-checkin",
+        help="Check in multiple habits from JSON file",
+    )
+    habits_batch_checkin_parser.add_argument("--file", required=True, help="Path to JSON array of check-ins.")
+    _add_json_argument(habits_batch_checkin_parser, help_text="Output batch check-in result as JSON.")
+
+    habits_archive_parser = habits_subparsers.add_parser(
+        "archive",
+        help="Archive a habit",
+    )
+    habits_archive_parser.add_argument("habit_id", type=str, help="Habit ID")
+    _add_json_argument(habits_archive_parser, help_text="Output updated habit as JSON.")
+
+    habits_unarchive_parser = habits_subparsers.add_parser(
+        "unarchive",
+        help="Unarchive a habit",
+    )
+    habits_unarchive_parser.add_argument("habit_id", type=str, help="Habit ID")
+    _add_json_argument(habits_unarchive_parser, help_text="Output updated habit as JSON.")
+
+    habits_checkins_parser = habits_subparsers.add_parser(
+        "checkins",
+        help="Get check-in history for one or more habits",
+    )
+    habits_checkins_parser.add_argument("habit_ids", nargs="+", help="One or more habit IDs.")
+    habits_checkins_parser.add_argument(
+        "--after-stamp",
+        type=int,
+        default=0,
+        help="Return check-ins after YYYYMMDD stamp (0 for all).",
+    )
+    _add_json_argument(habits_checkins_parser, help_text="Output check-ins as JSON.")
+
     return parser
