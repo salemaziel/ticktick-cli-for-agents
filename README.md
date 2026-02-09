@@ -11,7 +11,7 @@ and auth implementation.
 | Area | Status | Notes |
 |------|--------|-------|
 | Tasks | Done | Full single-task + batch task command surface implemented |
-| Projects | In Progress | `projects list` implemented |
+| Projects | Done | Full project lifecycle commands implemented |
 | Folders | Planned | Not yet implemented in CLI commands |
 | Columns | Planned | Not yet implemented in CLI commands |
 | Tags | Planned | Not yet implemented in CLI commands |
@@ -234,6 +234,21 @@ ticktick tasks batch-pin --file tasks_pin.json
 
 ```bash
 ticktick projects list
+ticktick projects get PROJECT_ID
+ticktick projects data PROJECT_ID
+
+ticktick projects create "New Project" \
+  [--color #F18181] \
+  [--kind TASK|NOTE] \
+  [--view list|kanban|timeline] \
+  [--folder FOLDER_ID]
+
+ticktick projects update PROJECT_ID \
+  [--name "Renamed"] \
+  [--color #57A8FF] \
+  [--folder FOLDER_ID | --remove-folder]
+
+ticktick projects delete PROJECT_ID
 ```
 
 ## Project Resolution Rules

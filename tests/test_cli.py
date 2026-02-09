@@ -13,7 +13,7 @@ from ticktick_cli.commands import (
     _run_projects_command,
     _run_tasks_command,
 )
-from ticktick_sdk.models import Project, Task
+from ticktick_sdk.models import Column, Project, ProjectData, Task
 
 
 class _Status:
@@ -33,6 +33,7 @@ class _FakeClient:
         self._tasks = tasks or []
         self._projects = projects or []
         self._tasks_by_id = {task.id: task for task in self._tasks}
+        self._projects_by_id = {project.id: project for project in self._projects}
 
         self.create_task_calls: list[dict] = []
         self.complete_task_calls: list[tuple[str, str]] = []
@@ -54,6 +55,9 @@ class _FakeClient:
         self.set_task_parents_calls: list[list[dict]] = []
         self.unparent_tasks_calls: list[list[dict]] = []
         self.pin_tasks_calls: list[list[dict]] = []
+        self.create_project_calls: list[dict] = []
+        self.update_project_calls: list[dict] = []
+        self.delete_project_calls: list[str] = []
 
     async def get_all_tasks(self) -> list[Task]:
         return self._tasks
@@ -235,6 +239,76 @@ class _FakeClient:
 
     async def get_all_projects(self) -> list[Project]:
         return self._projects
+
+    async def get_project(self, project_id: str) -> Project:
+        return self._projects_by_id[project_id]
+
+    async def get_project_tasks(self, project_id: str) -> ProjectData:
+        project = self._projects_by_id[project_id]
+        tasks = [task for task in self._tasks if task.project_id == project_id]
+        columns = [
+            Column(id=f"{project_id}-col-1", project_id=project_id, name="Backlog", sort_order=0),
+            Column(id=f"{project_id}-col-2", project_id=project_id, name="Doing", sort_order=1),
+        ]
+        return ProjectData(project=project, tasks=tasks, columns=columns)
+
+    async def create_project(
+        self,
+        name: str,
+        *,
+        color: str | None = None,
+        kind: str = "TASK",
+        view_mode: str = "list",
+        folder_id: str | None = None,
+    ) -> Project:
+        self.create_project_calls.append({
+            "name": name,
+            "color": color,
+            "kind": kind,
+            "view_mode": view_mode,
+            "folder_id": folder_id,
+        })
+        project = Project(
+            id=f"project-new-{len(self._projects) + 1}",
+            name=name,
+            color=color,
+            kind=kind,
+            view_mode=view_mode,
+            group_id=folder_id,
+            closed=False,
+        )
+        self._projects.append(project)
+        self._projects_by_id[project.id] = project
+        return project
+
+    async def update_project(
+        self,
+        project_id: str,
+        *,
+        name: str | None = None,
+        color: str | None = None,
+        folder_id: str | None = None,
+    ) -> Project:
+        self.update_project_calls.append({
+            "project_id": project_id,
+            "name": name,
+            "color": color,
+            "folder_id": folder_id,
+        })
+        project = self._projects_by_id[project_id]
+        if name is not None:
+            project.name = name
+        if color is not None:
+            project.color = color
+        if folder_id is not None:
+            project.group_id = None if folder_id == "NONE" else folder_id
+        self._projects_by_id[project_id] = project
+        return project
+
+    async def delete_project(self, project_id: str) -> None:
+        self.delete_project_calls.append(project_id)
+        self._projects_by_id.pop(project_id, None)
+        self._projects = [project for project in self._projects if project.id != project_id]
 
     async def get_status(self) -> _Status:
         return _Status(self.inbox_id)
@@ -516,6 +590,150 @@ async def test_projects_list_marks_current_project(monkeypatch, capsys) -> None:
     by_id = {project["id"]: project for project in output["projects"]}
     assert by_id["project-a"]["is_current"] is True
     assert by_id["project-b"]["is_current"] is False
+
+
+@pytest.mark.asyncio
+async def test_projects_get_returns_single_project_json(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TICKTICK_CURRENT_PROJECT_ID", "project-a")
+    projects = [
+        Project(id="project-a", name="Alpha", kind="TASK", view_mode="list"),
+        Project(id="project-b", name="Beta", kind="NOTE", view_mode="kanban"),
+    ]
+    client = _FakeClient(projects=projects)
+
+    args = Namespace(
+        command="projects",
+        projects_command="get",
+        project_id="project-b",
+        json=True,
+    )
+
+    exit_code = await _run_projects_command(client, args)
+    assert exit_code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["success"] is True
+    assert output["project"]["id"] == "project-b"
+    assert output["project"]["name"] == "Beta"
+
+
+@pytest.mark.asyncio
+async def test_projects_data_includes_tasks_and_columns(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TICKTICK_CURRENT_PROJECT_ID", "project-a")
+    monkeypatch.setenv("TZ", "UTC")
+
+    projects = [
+        Project(id="project-a", name="Alpha", kind="TASK", view_mode="list"),
+    ]
+    tasks = [
+        Task(
+            id="task-1",
+            project_id="project-a",
+            title="Task one",
+            priority=0,
+            status=0,
+            tags=[],
+        ),
+    ]
+    client = _FakeClient(projects=projects, tasks=tasks)
+
+    args = Namespace(
+        command="projects",
+        projects_command="data",
+        project_id="project-a",
+        json=True,
+    )
+
+    exit_code = await _run_projects_command(client, args)
+    assert exit_code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["success"] is True
+    assert output["data"]["project"]["id"] == "project-a"
+    assert output["data"]["task_count"] == 1
+    assert output["data"]["column_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_projects_create_passes_fields(capsys) -> None:
+    client = _FakeClient(projects=[])
+    args = Namespace(
+        command="projects",
+        projects_command="create",
+        name="Roadmap",
+        color="#123456",
+        kind="NOTE",
+        view_mode="kanban",
+        folder_id="folder-1",
+        json=True,
+    )
+
+    exit_code = await _run_projects_command(client, args)
+    assert exit_code == 0
+    assert client.create_project_calls == [{
+        "name": "Roadmap",
+        "color": "#123456",
+        "kind": "NOTE",
+        "view_mode": "kanban",
+        "folder_id": "folder-1",
+    }]
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["success"] is True
+    assert output["project"]["name"] == "Roadmap"
+
+
+@pytest.mark.asyncio
+async def test_projects_update_can_remove_folder(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TICKTICK_CURRENT_PROJECT_ID", "project-a")
+    projects = [
+        Project(id="project-a", name="Alpha", group_id="folder-x"),
+    ]
+    client = _FakeClient(projects=projects)
+    args = Namespace(
+        command="projects",
+        projects_command="update",
+        project_id="project-a",
+        name="Alpha Updated",
+        color=None,
+        folder_id=None,
+        remove_folder=True,
+        json=True,
+    )
+
+    exit_code = await _run_projects_command(client, args)
+    assert exit_code == 0
+    assert client.update_project_calls == [{
+        "project_id": "project-a",
+        "name": "Alpha Updated",
+        "color": None,
+        "folder_id": "NONE",
+    }]
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["success"] is True
+    assert output["project"]["name"] == "Alpha Updated"
+    assert output["project"]["folder_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_projects_delete_invokes_client(capsys) -> None:
+    projects = [Project(id="project-a", name="Alpha")]
+    client = _FakeClient(projects=projects)
+    args = Namespace(
+        command="projects",
+        projects_command="delete",
+        project_id="project-a",
+        json=True,
+    )
+
+    exit_code = await _run_projects_command(client, args)
+    assert exit_code == 0
+    assert client.delete_project_calls == ["project-a"]
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["success"] is True
+    assert output["action"] == "delete"
 
 
 @pytest.mark.asyncio

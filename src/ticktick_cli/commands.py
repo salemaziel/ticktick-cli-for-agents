@@ -475,10 +475,50 @@ def _project_to_json(project: Any, current_project_id: str) -> dict[str, Any]:
     return {
         "id": project_id,
         "name": getattr(project, "name", ""),
+        "color": getattr(project, "color", None),
+        "folder_id": getattr(project, "group_id", None),
         "kind": getattr(project, "kind", None),
         "view_mode": getattr(project, "view_mode", None),
+        "sort_option": getattr(project, "sort_option", None),
+        "sort_order": getattr(project, "sort_order", None),
+        "sort_type": getattr(project, "sort_type", None),
         "closed": bool(getattr(project, "closed", False)),
+        "muted": bool(getattr(project, "muted", False)),
+        "permission": getattr(project, "permission", None),
         "is_current": project_id == current_project_id,
+    }
+
+
+def _column_to_json(column: Any) -> dict[str, Any]:
+    return {
+        "id": getattr(column, "id", None),
+        "project_id": getattr(column, "project_id", None),
+        "name": getattr(column, "name", None),
+        "sort_order": getattr(column, "sort_order", None),
+        "created_time": (
+            getattr(column, "created_time", None).isoformat()
+            if getattr(column, "created_time", None) is not None
+            else None
+        ),
+        "modified_time": (
+            getattr(column, "modified_time", None).isoformat()
+            if getattr(column, "modified_time", None) is not None
+            else None
+        ),
+    }
+
+
+def _project_data_to_json(project_data: Any, current_project_id: str, tz: tzinfo) -> dict[str, Any]:
+    project = getattr(project_data, "project", None)
+    tasks = list(getattr(project_data, "tasks", []) or [])
+    columns = list(getattr(project_data, "columns", []) or [])
+    tasks_sorted = sorted(tasks, key=lambda task: _task_sort_key(task, tz))
+    return {
+        "project": _project_to_json(project, current_project_id) if project else None,
+        "task_count": len(tasks_sorted),
+        "column_count": len(columns),
+        "tasks": [_task_to_json(task, tz) for task in tasks_sorted],
+        "columns": [_column_to_json(column) for column in columns],
     }
 
 
@@ -561,6 +601,62 @@ def _print_projects_pretty(projects: list[Any], current_project_id: str) -> None
         ])
 
     _print_table(["Current", "ID", "Name", "Kind", "View", "Closed"], rows)
+
+
+def _print_project_details_pretty(project: Any, current_project_id: str) -> None:
+    project_id = str(getattr(project, "id", ""))
+    print("Project")
+    print(f"ID: {project_id}")
+    print(f"Name: {getattr(project, 'name', '')}")
+    print(f"Current: {'yes' if project_id == current_project_id else 'no'}")
+    print(f"Kind: {getattr(project, 'kind', '')}")
+    print(f"View: {getattr(project, 'view_mode', '')}")
+    print(f"Color: {getattr(project, 'color', '') or '-'}")
+    print(f"Folder ID: {getattr(project, 'group_id', '') or '-'}")
+    print(f"Closed: {'yes' if bool(getattr(project, 'closed', False)) else 'no'}")
+    print(f"Muted: {'yes' if bool(getattr(project, 'muted', False)) else 'no'}")
+    print(f"Permission: {getattr(project, 'permission', '') or '-'}")
+
+
+def _print_project_data_pretty(
+    project_data: Any,
+    current_project_id: str,
+    tz: tzinfo,
+    tz_name: str,
+) -> None:
+    project = getattr(project_data, "project", None)
+    tasks = list(getattr(project_data, "tasks", []) or [])
+    columns = list(getattr(project_data, "columns", []) or [])
+
+    if project is not None:
+        _print_project_details_pretty(project, current_project_id)
+        print()
+
+    tasks_sorted = sorted(tasks, key=lambda task: _task_sort_key(task, tz))
+    _print_task_list_pretty(
+        tasks_sorted,
+        str(getattr(project, "id", "")) if project is not None else None,
+        None,
+        tz_name,
+        tz,
+        title="Project Tasks",
+        show_project=False,
+    )
+
+    print()
+    print(f"Columns ({len(columns)})")
+    if not columns:
+        print("No columns found.")
+        return
+
+    rows: list[list[str]] = []
+    for column in columns:
+        rows.append([
+            str(getattr(column, "id", "")),
+            str(getattr(column, "name", "") or ""),
+            str(getattr(column, "sort_order", "") or ""),
+        ])
+    _print_table(["ID", "Name", "Sort"], rows)
 
 
 def _task_sort_key(task: Any, tz: tzinfo) -> tuple[bool, str, int, str]:
@@ -1302,27 +1398,105 @@ async def _run_tasks_command(client: Any, args: argparse.Namespace) -> int:
 
 
 async def _run_projects_command(client: Any, args: argparse.Namespace) -> int:
-    if args.projects_command != "list":
-        raise ValueError(f"Unknown projects subcommand: {args.projects_command}")
-
-    projects = await client.get_all_projects()
-    projects_sorted = sorted(projects, key=lambda project: str(project.name).casefold())
+    tz, configured_tz_name = _get_cli_timezone()
+    tz_display_name = configured_tz_name or "local"
+    json_output = bool(getattr(args, "json", False))
     current_project_id = await _resolve_project_id(client, None)
 
-    if args.json:
-        payload = {
-            "count": len(projects_sorted),
-            "current_project_id": current_project_id,
-            "projects": [
-                _project_to_json(project, current_project_id)
-                for project in projects_sorted
-            ],
-        }
-        _print_json(payload)
-    else:
-        _print_projects_pretty(projects_sorted, current_project_id)
+    if args.projects_command == "list":
+        projects = await client.get_all_projects()
+        projects_sorted = sorted(projects, key=lambda project: str(project.name).casefold())
 
-    return 0
+        if json_output:
+            _print_json({
+                "count": len(projects_sorted),
+                "current_project_id": current_project_id,
+                "projects": [
+                    _project_to_json(project, current_project_id)
+                    for project in projects_sorted
+                ],
+            })
+        else:
+            _print_projects_pretty(projects_sorted, current_project_id)
+        return 0
+
+    if args.projects_command == "get":
+        project = await client.get_project(args.project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "project": _project_to_json(project, current_project_id),
+            })
+        else:
+            _print_project_details_pretty(project, current_project_id)
+        return 0
+
+    if args.projects_command == "data":
+        project_data = await client.get_project_tasks(args.project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "timezone": tz_display_name,
+                "data": _project_data_to_json(project_data, current_project_id, tz),
+            })
+        else:
+            _print_project_data_pretty(project_data, current_project_id, tz, tz_display_name)
+        return 0
+
+    if args.projects_command == "create":
+        project = await client.create_project(
+            name=args.name,
+            color=args.color,
+            kind=args.kind.upper() if isinstance(args.kind, str) else args.kind,
+            view_mode=args.view_mode,
+            folder_id=args.folder_id,
+        )
+        if json_output:
+            _print_json({
+                "success": True,
+                "project": _project_to_json(project, current_project_id),
+            })
+        else:
+            print(f"Project created: {getattr(project, 'id', '')}")
+            _print_project_details_pretty(project, current_project_id)
+        return 0
+
+    if args.projects_command == "update":
+        if args.folder_id and args.remove_folder:
+            raise ValueError("Use either --folder or --remove-folder, not both.")
+        folder_id = "NONE" if args.remove_folder else args.folder_id
+        if args.name is None and args.color is None and folder_id is None:
+            raise ValueError("No update fields provided.")
+
+        project = await client.update_project(
+            project_id=args.project_id,
+            name=args.name,
+            color=args.color,
+            folder_id=folder_id,
+        )
+        if json_output:
+            _print_json({
+                "success": True,
+                "project": _project_to_json(project, current_project_id),
+            })
+        else:
+            print(f"Project {args.project_id} updated.")
+            _print_project_details_pretty(project, current_project_id)
+        return 0
+
+    if args.projects_command == "delete":
+        await client.delete_project(args.project_id)
+        if json_output:
+            _print_json({
+                "success": True,
+                "action": "delete",
+                "project_id": args.project_id,
+            })
+        else:
+            print(f"Project {args.project_id} deleted.")
+        return 0
+
+    raise ValueError(f"Unknown projects subcommand: {args.projects_command}")
 
 
 async def run_data_cli(args: argparse.Namespace) -> int:

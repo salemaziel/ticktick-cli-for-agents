@@ -621,6 +621,7 @@ Examples:
     projects_parser = subparsers.add_parser(
         "projects",
         help="Manage projects from the command line",
+        description="Project management commands.",
     )
     projects_subparsers = projects_parser.add_subparsers(
         dest="projects_command",
@@ -632,10 +633,79 @@ Examples:
         "list",
         help="List projects",
     )
-    projects_list_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output projects as JSON.",
+    _add_json_argument(projects_list_parser, help_text="Output projects as JSON.")
+
+    projects_get_parser = projects_subparsers.add_parser(
+        "get",
+        help="Get project details by ID",
     )
+    projects_get_parser.add_argument("project_id", type=str, help="Project ID")
+    _add_json_argument(projects_get_parser, help_text="Output project as JSON.")
+
+    projects_data_parser = projects_subparsers.add_parser(
+        "data",
+        help="Get project with tasks and columns",
+    )
+    projects_data_parser.add_argument("project_id", type=str, help="Project ID")
+    _add_json_argument(projects_data_parser, help_text="Output project data as JSON.")
+
+    projects_create_parser = projects_subparsers.add_parser(
+        "create",
+        help="Create a project",
+    )
+    projects_create_parser.add_argument("name", type=str, help="Project name")
+    projects_create_parser.add_argument(
+        "--color",
+        type=str,
+        default=None,
+        help="Hex color (e.g. #F18181).",
+    )
+    projects_create_parser.add_argument(
+        "--kind",
+        choices=["TASK", "NOTE", "task", "note"],
+        default="TASK",
+        help="Project kind.",
+    )
+    projects_create_parser.add_argument(
+        "--view",
+        dest="view_mode",
+        choices=["list", "kanban", "timeline"],
+        default="list",
+        help="Project view mode.",
+    )
+    projects_create_parser.add_argument(
+        "--folder",
+        dest="folder_id",
+        default=None,
+        help="Folder (project group) ID.",
+    )
+    _add_json_argument(projects_create_parser, help_text="Output created project as JSON.")
+
+    projects_update_parser = projects_subparsers.add_parser(
+        "update",
+        help="Update a project",
+    )
+    projects_update_parser.add_argument("project_id", type=str, help="Project ID")
+    projects_update_parser.add_argument("--name", type=str, default=None, help="New name.")
+    projects_update_parser.add_argument("--color", type=str, default=None, help="New hex color.")
+    projects_update_parser.add_argument(
+        "--folder",
+        dest="folder_id",
+        default=None,
+        help="New folder ID.",
+    )
+    projects_update_parser.add_argument(
+        "--remove-folder",
+        action="store_true",
+        help="Remove project from folder.",
+    )
+    _add_json_argument(projects_update_parser, help_text="Output updated project as JSON.")
+
+    projects_delete_parser = projects_subparsers.add_parser(
+        "delete",
+        help="Delete a project",
+    )
+    projects_delete_parser.add_argument("project_id", type=str, help="Project ID")
+    _add_json_argument(projects_delete_parser, help_text="Output result as JSON.")
 
     return parser
