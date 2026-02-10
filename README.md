@@ -448,10 +448,14 @@ When a task command needs project context and `--project` is omitted:
 1. For existing-task operations (`done`, `abandon`, `delete`, `pin`, `unpin`,
    `column`, `update`, `subtask`, `unparent`), project is auto-resolved from
    the task.
-2. For create/list-style operations, project is resolved in this order:
+2. For create operations (`add`, `quick-add`), project is resolved in this
+   order:
    - explicit `--project`
    - `TICKTICK_CURRENT_PROJECT_ID`
    - account inbox project ID
+3. Query operations (`list`, `search`, `by-tag`, `by-priority`, `today`,
+   `overdue`, `completed`, `abandoned`, `deleted`) search all projects by
+   default. Pass `--project` to narrow results.
 
 ### Date and Timezone
 

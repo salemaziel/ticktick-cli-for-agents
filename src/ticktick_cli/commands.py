@@ -851,7 +851,7 @@ async def _run_tasks_command(client: Any, args: argparse.Namespace) -> int:
     json_output = bool(getattr(args, "json", False))
 
     if args.tasks_command == "list":
-        project_id = await _resolve_project_id(client, getattr(args, "project_id", None))
+        project_id = getattr(args, "project_id", None)
         tasks = await client.get_all_tasks()
         filtered = _filter_tasks_by_project(tasks, project_id)
 

@@ -189,7 +189,7 @@ Examples:
 
     tasks_list_parser = tasks_subparsers.add_parser(
         "list",
-        help="List active tasks (defaults to current project/inbox)",
+        help="List active tasks (defaults to all projects)",
     )
     _add_project_argument(tasks_list_parser)
     tasks_list_parser.add_argument(

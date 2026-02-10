@@ -685,8 +685,50 @@ async def test_tasks_list_filters_due_with_timezone(monkeypatch, capsys) -> None
     assert exit_code == 0
 
     output = json.loads(capsys.readouterr().out)
+    assert output["project_id"] is None
+    assert output["count"] == 2
+    assert {task["id"] for task in output["tasks"]} == {"match-task", "other-project"}
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_can_filter_by_project(capsys) -> None:
+    tasks = [
+        Task(
+            id="project-task",
+            project_id="p1",
+            title="In project p1",
+            due_date=datetime(2026, 2, 10, 9, 0, tzinfo=UTC),
+            priority=0,
+            status=0,
+            tags=[],
+        ),
+        Task(
+            id="other-project-task",
+            project_id="p2",
+            title="In project p2",
+            due_date=datetime(2026, 2, 10, 9, 0, tzinfo=UTC),
+            priority=0,
+            status=0,
+            tags=[],
+        ),
+    ]
+
+    client = _FakeClient(tasks=tasks)
+    args = Namespace(
+        command="tasks",
+        tasks_command="list",
+        project_id="p1",
+        due="2026-02-10",
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["project_id"] == "p1"
     assert output["count"] == 1
-    assert output["tasks"][0]["id"] == "match-task"
+    assert output["tasks"][0]["id"] == "project-task"
 
 
 @pytest.mark.asyncio
