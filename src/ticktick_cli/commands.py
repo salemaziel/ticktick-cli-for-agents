@@ -288,6 +288,18 @@ def _task_due_as_local_date(task_due: datetime | None, tz: tzinfo) -> date | Non
     return _datetime_in_timezone(task_due, tz).date()
 
 
+def _task_is_completed(task: Any) -> bool:
+    completed = getattr(task, "is_completed", None)
+    if isinstance(completed, bool):
+        return completed
+    if callable(completed):
+        try:
+            return bool(completed())
+        except TypeError:
+            pass
+    return int(getattr(task, "status", 0)) in {1, 2}
+
+
 def _format_due(task_due: datetime | None, tz: tzinfo) -> str:
     if task_due is None:
         return "-"
@@ -1269,7 +1281,12 @@ async def _run_tasks_command(client: Any, args: argparse.Namespace) -> int:
         return 0
 
     if args.tasks_command == "today":
-        tasks = await client.get_today_tasks()
+        today_local = datetime.now(tz).date()
+        tasks = await client.get_all_tasks()
+        tasks = [
+            task for task in tasks
+            if _task_due_as_local_date(getattr(task, "due_date", None), tz) == today_local
+        ]
         project_id = getattr(args, "project_id", None)
         filtered = _filter_tasks_by_project(tasks, project_id)
         filtered.sort(key=lambda task: _task_sort_key(task, tz))
@@ -1284,7 +1301,7 @@ async def _run_tasks_command(client: Any, args: argparse.Namespace) -> int:
             _print_task_list_pretty(
                 filtered,
                 project_id,
-                datetime.now(tz).date(),
+                today_local,
                 tz_display_name,
                 tz,
                 title="Today's tasks",
@@ -1293,7 +1310,17 @@ async def _run_tasks_command(client: Any, args: argparse.Namespace) -> int:
         return 0
 
     if args.tasks_command == "overdue":
-        tasks = await client.get_overdue_tasks()
+        today_local = datetime.now(tz).date()
+        tasks = []
+        for task in await client.get_all_tasks():
+            due_local = _task_due_as_local_date(getattr(task, "due_date", None), tz)
+            if due_local is None:
+                continue
+            if due_local >= today_local:
+                continue
+            if _task_is_completed(task):
+                continue
+            tasks.append(task)
         project_id = getattr(args, "project_id", None)
         filtered = _filter_tasks_by_project(tasks, project_id)
         filtered.sort(key=lambda task: _task_sort_key(task, tz))

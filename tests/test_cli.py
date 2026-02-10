@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from argparse import Namespace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -729,6 +730,105 @@ async def test_tasks_list_can_filter_by_project(capsys) -> None:
     assert output["project_id"] == "p1"
     assert output["count"] == 1
     assert output["tasks"][0]["id"] == "project-task"
+
+
+@pytest.mark.asyncio
+async def test_tasks_today_uses_local_due_date(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TZ", "Europe/Warsaw")
+    local_tz = ZoneInfo("Europe/Warsaw")
+    local_midnight_today = datetime.now(local_tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    due_today_local = local_midnight_today.astimezone(UTC)
+    due_yesterday_local = (local_midnight_today - timedelta(days=1)).astimezone(UTC)
+
+    assert due_today_local.date() != local_midnight_today.date()
+
+    tasks = [
+        Task(
+            id="today-local",
+            project_id="p1",
+            title="Local today",
+            due_date=due_today_local,
+            priority=0,
+            status=0,
+            tags=[],
+        ),
+        Task(
+            id="yesterday-local",
+            project_id="p1",
+            title="Local yesterday",
+            due_date=due_yesterday_local,
+            priority=0,
+            status=0,
+            tags=[],
+        ),
+    ]
+    client = _FakeClient(tasks=tasks)
+    args = Namespace(
+        command="tasks",
+        tasks_command="today",
+        project_id=None,
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["count"] == 1
+    assert output["tasks"][0]["id"] == "today-local"
+
+
+@pytest.mark.asyncio
+async def test_tasks_overdue_uses_local_due_date(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TZ", "Europe/Warsaw")
+    local_tz = ZoneInfo("Europe/Warsaw")
+    local_midnight_today = datetime.now(local_tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    due_yesterday_local = (local_midnight_today - timedelta(days=1)).astimezone(UTC)
+    due_today_local = local_midnight_today.astimezone(UTC)
+
+    tasks = [
+        Task(
+            id="overdue-active",
+            project_id="p1",
+            title="Overdue active",
+            due_date=due_yesterday_local,
+            priority=0,
+            status=0,
+            tags=[],
+        ),
+        Task(
+            id="overdue-completed",
+            project_id="p1",
+            title="Overdue completed",
+            due_date=due_yesterday_local,
+            priority=0,
+            status=2,
+            tags=[],
+        ),
+        Task(
+            id="today-active",
+            project_id="p1",
+            title="Due today",
+            due_date=due_today_local,
+            priority=0,
+            status=0,
+            tags=[],
+        ),
+    ]
+    client = _FakeClient(tasks=tasks)
+    args = Namespace(
+        command="tasks",
+        tasks_command="overdue",
+        project_id=None,
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["count"] == 1
+    assert output["tasks"][0]["id"] == "overdue-active"
 
 
 @pytest.mark.asyncio
