@@ -1,104 +1,106 @@
-# TickTick CLI Setup and Authentication
+# TickTick CLI Setup and Auth
 
 ## Contents
 
-- Prerequisites
-- Install the CLI
-- Choose command invocation
-- Configure environment variables
-- Run OAuth bootstrap
-- Verify connectivity
+- Install strategy
+- Required credentials
+- Environment setup
+- OAuth flow
+- Connectivity verification
 
-## Prerequisites
+## Install strategy
 
-- Python 3.11 or newer
-- Internet access for TickTick APIs and OAuth callback flow
-- TickTick developer app credentials and account credentials
+Run the target `ticktick ...` command first.
 
-## Install the CLI
-
-Install from PyPI:
+Install only when command execution fails with missing CLI errors (`command not found`, `No module named ticktick_cli`, missing entrypoint):
 
 ```bash
 python3 -m pip install --upgrade ticktick-cli
 ```
 
-If working from this repository and validating local source changes:
+Retry the original command after installation.
+
+If the script entrypoint is still unavailable in a local-source checkout, use:
 
 ```bash
-python3 -m pip install -e .
+PYTHONPATH=src python3 -m ticktick_cli <same-args>
 ```
 
-## Choose command invocation
+## Required credentials
 
-Prefer direct entrypoint:
+TickTick CLI needs all of these values for full functionality:
 
-```bash
-ticktick --version
+```dotenv
+TICKTICK_CLIENT_ID=
+TICKTICK_CLIENT_SECRET=
+TICKTICK_REDIRECT_URI=http://127.0.0.1:8080/callback
+TICKTICK_ACCESS_TOKEN=
+TICKTICK_USERNAME=
+TICKTICK_PASSWORD=
 ```
 
-If `ticktick` is not on PATH, use module fallback:
+Credential meaning:
 
-```bash
-python3 -m ticktick_cli --version
-```
+- `TICKTICK_CLIENT_ID` / `TICKTICK_CLIENT_SECRET`: app credentials from TickTick Developer Portal.
+- `TICKTICK_REDIRECT_URI`: OAuth callback URL; must exactly match app config.
+- `TICKTICK_ACCESS_TOKEN`: OAuth token returned by `ticktick auth`.
+- `TICKTICK_USERNAME` / `TICKTICK_PASSWORD`: account credentials for session endpoints.
 
-For all subsequent commands, use the same invocation style consistently.
+## Environment setup
 
-## Configure environment variables
-
-Create `.env` from `.env.example` when available:
+Create `.env` from template when available:
 
 ```bash
 cp .env.example .env
 ```
 
-Required values:
+Fill required values.
 
-```dotenv
-TICKTICK_CLIENT_ID=your_client_id
-TICKTICK_CLIENT_SECRET=your_client_secret
-TICKTICK_REDIRECT_URI=http://127.0.0.1:8080/callback
-TICKTICK_ACCESS_TOKEN=
-TICKTICK_USERNAME=you@example.com
-TICKTICK_PASSWORD=your_password
-```
-
-Common optional values:
+Optional but common:
 
 ```dotenv
 TICKTICK_HOST=ticktick.com
-TICKTICK_TIMEOUT=30
 TICKTICK_CURRENT_PROJECT_ID=
 TZ=UTC
 ```
 
-## Run OAuth bootstrap
+## OAuth flow
 
-Interactive local environment:
+1. Create app at <https://developer.ticktick.com/manage>.
+2. Set redirect URI in app config (commonly `http://127.0.0.1:8080/callback`).
+3. Run auth command:
 
 ```bash
 ticktick auth
 ```
 
-Headless or SSH environment:
+For SSH/headless environments:
 
 ```bash
 ticktick auth --manual
 ```
 
-After auth succeeds, persist `TICKTICK_ACCESS_TOKEN`.
+Manual mode behavior:
 
-## Verify connectivity
+- CLI prints authorization URL.
+- User opens URL in any browser.
+- After approve, browser redirects to callback URL.
+- User copies `code` query parameter and pastes into terminal.
 
-Run a minimal JSON command:
+4. Persist returned access token into `.env` as `TICKTICK_ACCESS_TOKEN`.
+
+## Connectivity verification
+
+Run minimal JSON read:
 
 ```bash
 ticktick projects list --json
 ```
 
-If using module fallback:
+Successful JSON response means auth/config are usable.
+
+If parameters are unclear after a command failure, use help as recovery:
 
 ```bash
-python3 -m ticktick_cli projects list --json
+ticktick <group> <action> --help
 ```

@@ -1,4 +1,4 @@
 interface:
   display_name: "TickTick CLI"
-  short_description: "Install, auth, and run TickTick CLI workflows"
-  default_prompt: "Use $ticktick-cli to install or validate ticktick-cli, authenticate, then execute TickTick task, project, tag, habit, and sync workflows with JSON outputs."
+  short_description: "Run TickTick CLI workflows safely"
+  default_prompt: "Use $ticktick-cli to execute TickTick commands directly, install only if the CLI is missing, then run JSON-first auth/read/mutation workflows with ID-safe updates."

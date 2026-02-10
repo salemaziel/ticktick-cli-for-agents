@@ -2,65 +2,106 @@
 
 A standalone command-line interface for TickTick.
 
-`ticktick-cli` gives you a scriptable interface for daily TickTick operations,
-including tasks, projects, folders, columns, tags, habits, user info, focus
-analytics, and full account sync payload access.
+`ticktick-cli` gives you scriptable access to tasks, projects, folders, columns, tags, habits, account data, focus analytics, and full sync payloads.
+
+This README focuses on practical day-to-day CLI workflows (single-item operations). Batch commands are intentionally not covered here.
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Authentication (Required)](#authentication-required)
+- [Quick Start](#quick-start)
+- [Global Usage](#global-usage)
+- [Command Reference](#command-reference)
+- [Behavior Notes](#behavior-notes)
+- [Environment Variables](#environment-variables)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Acknowledgments](#acknowledgments)
 
 ## Installation
 
-```bash
-pip install ticktick-cli
-```
-
 Python 3.11+ is required.
 
-## Authentication Setup (Required)
+Install from PyPI:
 
-This CLI needs both OAuth2 (V1 API) and account credentials (V2/session API).
+```bash
+python3 -m pip install --upgrade ticktick-cli
+```
 
-1. Create an app at TickTick Developer Portal:
-   `https://developer.ticktick.com/manage`
-2. Set redirect URI in your TickTick app.
-   Default is:
-   `http://127.0.0.1:8080/callback`
-3. Create a `.env` file in your working directory:
+If you are developing from this repository:
+
+```bash
+python3 -m pip install -e .
+```
+
+## Authentication (Required)
+
+The CLI needs both authentication layers:
+
+- OAuth app credentials for TickTick API access
+- TickTick account credentials for session-based endpoints
+
+### 1. Create a TickTick developer app
+
+1. Open: <https://developer.ticktick.com/manage>
+2. Create an app.
+3. Set a Redirect URI (recommended):
+   - `http://127.0.0.1:8080/callback`
+
+Important: the Redirect URI in TickTick Developer Portal must exactly match `TICKTICK_REDIRECT_URI` in your environment.
+
+### 2. Create `.env`
+
+From your project/work directory:
 
 ```bash
 cp .env.example .env
 ```
 
-4. Fill required values:
+Set required values:
 
 ```dotenv
-# OAuth app credentials (required)
+# OAuth app credentials
 TICKTICK_CLIENT_ID=your_client_id
 TICKTICK_CLIENT_SECRET=your_client_secret
 TICKTICK_REDIRECT_URI=http://127.0.0.1:8080/callback
 TICKTICK_ACCESS_TOKEN=
 
-# TickTick account credentials (required for V2/session endpoints)
+# TickTick account credentials
 TICKTICK_USERNAME=you@example.com
 TICKTICK_PASSWORD=your_password
 ```
 
-5. Run OAuth flow to get `TICKTICK_ACCESS_TOKEN`:
+### 3. Run OAuth flow to obtain `TICKTICK_ACCESS_TOKEN`
+
+Local desktop flow (opens browser):
 
 ```bash
 ticktick auth
 ```
 
-If you are on SSH/headless environment:
+Headless / SSH flow:
 
 ```bash
 ticktick auth --manual
 ```
 
-6. Save the generated token in `.env` as `TICKTICK_ACCESS_TOKEN`.
-7. Verify connection:
+After success, copy the printed access token into:
+
+```dotenv
+TICKTICK_ACCESS_TOKEN=...
+```
+
+### 4. Verify auth and connectivity
+
+Run a read command:
 
 ```bash
 ticktick projects list --json
 ```
+
+If this command returns data, your environment is configured correctly.
 
 ## Quick Start
 
@@ -68,13 +109,13 @@ ticktick projects list --json
 # List projects
 ticktick projects list
 
-# Create a task in inbox/current project
-ticktick tasks add "Buy coffee" --priority medium
+# Add task (project auto-resolves if --project is omitted)
+ticktick tasks add "Buy coffee" --priority medium --due 2026-02-12
 
-# Mark task complete
+# Complete task
 ticktick tasks done TASK_ID
 
-# Show full sync payload (raw account state)
+# Show full account sync payload
 ticktick sync --json
 ```
 
@@ -88,30 +129,15 @@ ticktick --json <command>
 
 Notes:
 
-- `--json` is supported on data commands.
-- `auth` and `server` accept `--json` for consistency, but output remains
-  interactive/text-oriented.
-
-## Top-Level Commands
-
-```bash
-ticktick server [--enabledTools CSV] [--enabledModules CSV] [--host ticktick.com|dida365.com]
-ticktick auth [--manual]
-ticktick sync [--json]
-
-ticktick tasks <action> ...
-ticktick projects <action> ...
-ticktick folders <action> ...
-ticktick columns <action> ...
-ticktick tags <action> ...
-ticktick habits <action> ...
-ticktick user <action> ...
-ticktick focus <action> ...
-```
+- `--json` is supported on data commands and is recommended for scripting.
+- `auth` and `server` accept `--json` for CLI consistency, but output remains text/interactive.
+- Running `ticktick` with no command starts `ticktick server`.
 
 ## Command Reference
 
 ### Server
+
+Run MCP server (default command):
 
 ```bash
 ticktick server
@@ -119,6 +145,12 @@ ticktick server --enabledModules tasks,projects
 ticktick server --enabledTools ticktick_list_tasks,ticktick_create_tasks
 ticktick server --host ticktick.com
 ```
+
+Flags:
+
+- `--enabledModules`: comma-separated modules (`tasks,projects,folders,columns,tags,habits,user,focus`)
+- `--enabledTools`: comma-separated tool names
+- `--host`: `ticktick.com` (default) or `dida365.com`
 
 ### Auth
 
@@ -130,16 +162,14 @@ ticktick auth --manual
 ### Sync
 
 ```bash
-ticktick sync [--json]
+ticktick sync --json
 ```
 
-Returns the raw full-account sync payload (`checkPoint`, projects, tags,
-ordering blocks, task deltas, and more). Useful for diagnostics and backup-like
-inspection.
+Returns the raw full-account sync payload.
 
 ### Tasks
 
-#### Read and Query
+Read/query:
 
 ```bash
 ticktick tasks list [--project PROJECT_ID] [--due YYYY-MM-DD] [--json]
@@ -154,11 +184,7 @@ ticktick tasks abandoned [--days N] [--limit N] [--project PROJECT_ID] [--json]
 ticktick tasks deleted [--limit N] [--project PROJECT_ID] [--json]
 ```
 
-`PRIORITY` accepts `none|low|medium|high|0|1|3|5`.
-`--content` is task note/body text. `--description` maps to TickTick checklist
-description field (`desc` in API payloads).
-
-#### Create
+Create:
 
 ```bash
 ticktick tasks add TITLE \
@@ -177,10 +203,11 @@ ticktick tasks add TITLE \
   [--reminders TRIGGER_1,TRIGGER_2] \
   [--json]
 
+# Quick parser-style create
 ticktick tasks quick-add TEXT [--project PROJECT_ID] [--json]
 ```
 
-#### Update and Lifecycle
+Update/lifecycle:
 
 ```bash
 ticktick tasks update TASK_ID \
@@ -203,7 +230,7 @@ ticktick tasks abandon TASK_ID [--project PROJECT_ID] [--json]
 ticktick tasks delete TASK_ID [--project PROJECT_ID] [--json]
 ```
 
-#### Move, Hierarchy, Pinning, Columns
+Task relationships/moves:
 
 ```bash
 ticktick tasks move TASK_ID --to-project PROJECT_ID [--from-project PROJECT_ID] [--json]
@@ -214,104 +241,7 @@ ticktick tasks unpin TASK_ID [--project PROJECT_ID] [--json]
 ticktick tasks column TASK_ID [--project PROJECT_ID] (--column COLUMN_ID | --clear-column) [--json]
 ```
 
-#### Batch Operations
-
-```bash
-ticktick tasks batch-create --file tasks_create.json [--json]
-ticktick tasks batch-update --file tasks_update.json [--json]
-ticktick tasks batch-delete --file tasks_delete.json [--json]
-ticktick tasks batch-done --file tasks_complete.json [--json]
-ticktick tasks batch-move --file tasks_move.json [--json]
-ticktick tasks batch-parent --file tasks_parent.json [--json]
-ticktick tasks batch-unparent --file tasks_unparent.json [--json]
-ticktick tasks batch-pin --file tasks_pin.json [--json]
-```
-
-Batch payload formats:
-
-`batch-create`:
-
-```json
-[
-  {
-    "title": "Task A",
-    "project_id": "PROJECT_ID",
-    "content": "notes",
-    "priority": "high",
-    "tags": ["work", "urgent"],
-    "due_date": "2026-02-15T09:00:00+00:00"
-  }
-]
-```
-
-`batch-update`:
-
-```json
-[
-  {
-    "task_id": "TASK_ID",
-    "project_id": "PROJECT_ID",
-    "title": "Updated title",
-    "priority": 3
-  }
-]
-```
-
-`batch-delete` and `batch-done` (either format accepted):
-
-```json
-[
-  ["TASK_ID", "PROJECT_ID"],
-  { "task_id": "TASK_ID_2", "project_id": "PROJECT_ID_2" }
-]
-```
-
-`batch-move`:
-
-```json
-[
-  {
-    "task_id": "TASK_ID",
-    "from_project_id": "FROM_PROJECT_ID",
-    "to_project_id": "TO_PROJECT_ID"
-  }
-]
-```
-
-`batch-parent`:
-
-```json
-[
-  {
-    "task_id": "TASK_ID",
-    "project_id": "PROJECT_ID",
-    "parent_id": "PARENT_TASK_ID"
-  }
-]
-```
-
-`batch-unparent`:
-
-```json
-[
-  {
-    "task_id": "TASK_ID",
-    "project_id": "PROJECT_ID"
-  }
-]
-```
-
-`batch-pin`:
-
-```json
-[
-  {
-    "task_id": "TASK_ID",
-    "project_id": "PROJECT_ID",
-    "pin": true
-  }
-]
-```
+Priority accepts `none|low|medium|high` and numeric forms `0|1|3|5` where relevant.
 
 ### Projects
 
@@ -375,11 +305,11 @@ ticktick habits preferences [--json]
 
 ticktick habits create NAME \
   [--type Boolean|Real] \
-  [--goal 1.0] \
-  [--step 0.0] \
-  [--unit Count] \
-  [--icon habit_daily_check_in] \
-  [--color #97E38B] \
+  [--goal FLOAT] \
+  [--step FLOAT] \
+  [--unit TEXT] \
+  [--icon ICON_KEY] \
+  [--color HEX] \
   [--section SECTION_ID] \
   [--repeat RRULE] \
   [--reminders HH:MM,HH:MM] \
@@ -392,7 +322,7 @@ ticktick habits update HABIT_ID \
   [--goal FLOAT] \
   [--step FLOAT] \
   [--unit TEXT] \
-  [--icon TEXT] \
+  [--icon ICON_KEY] \
   [--color HEX] \
   [--section SECTION_ID] \
   [--repeat RRULE] \
@@ -401,26 +331,11 @@ ticktick habits update HABIT_ID \
   [--encouragement TEXT] \
   [--json]
 
-ticktick habits delete HABIT_ID [--json]
-
 ticktick habits checkin HABIT_ID [--value FLOAT] [--date YYYY-MM-DD] [--json]
-ticktick habits batch-checkin --file checkins.json [--json]
-ticktick habits checkins HABIT_ID [HABIT_ID ...] [--after-stamp YYYYMMDD] [--json]
-
 ticktick habits archive HABIT_ID [--json]
 ticktick habits unarchive HABIT_ID [--json]
-```
-
-`batch-checkin` file format:
-
-```json
-[
-  {
-    "habit_id": "HABIT_ID",
-    "value": 1.0,
-    "checkin_date": "2026-02-01"
-  }
-]
+ticktick habits delete HABIT_ID [--json]
+ticktick habits checkins HABIT_ID [HABIT_ID ...] [--after-stamp YYYYMMDD] [--json]
 ```
 
 ### User
@@ -439,36 +354,41 @@ ticktick focus heatmap [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N] [--json]
 ticktick focus by-tag [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--days N] [--json]
 ```
 
-## Command Behavior Notes
+## Behavior Notes
 
-### Project Resolution
+### Project resolution
 
-When a task command needs project context and `--project` is omitted:
+When `--project` is omitted:
 
-1. For existing-task operations (`done`, `abandon`, `delete`, `pin`, `unpin`,
-   `column`, `update`, `subtask`, `unparent`), project is auto-resolved from
-   the task.
-2. For create operations (`add`, `quick-add`), project is resolved in this
-   order:
-   - explicit `--project`
-   - `TICKTICK_CURRENT_PROJECT_ID`
-   - account inbox project ID
-3. Query operations (`list`, `search`, `by-tag`, `by-priority`, `today`,
-   `overdue`, `completed`, `abandoned`, `deleted`) search all projects by
-   default. Pass `--project` to narrow results.
+- Existing-task mutation operations (`update`, `done`, `abandon`, `delete`, `pin`, `unpin`, `column`, `subtask`, `unparent`) resolve project from the target task.
+- Create-style operations (`add`, `quick-add`) resolve in this order:
+  1. explicit `--project`
+  2. `TICKTICK_CURRENT_PROJECT_ID`
+  3. inbox project ID
+- Query operations (`list`, `search`, `by-tag`, `by-priority`, `today`, `overdue`, `completed`, `abandoned`, `deleted`) default to all projects.
 
-### Date and Timezone
+### Date, time, timezone
 
-- `--due` and `--start` accept `YYYY-MM-DD` or ISO datetime.
-- `--from` and `--to` for focus commands use `YYYY-MM-DD`.
-- `TZ` environment variable controls local date interpretation.
-- `--time-zone` on task create/update can override stored timezone.
+- `tasks --due` filter expects `YYYY-MM-DD`.
+- `tasks add/update --start` and `--due` accept `YYYY-MM-DD` or ISO datetime.
+- `focus --from/--to` and `habits checkin --date` expect `YYYY-MM-DD`.
+- `TZ` controls local date interpretation in CLI output/filtering.
+- `--time-zone` on task create/update sets stored task timezone explicitly.
 
-Example:
+### Host selection
+
+Set region host explicitly when needed:
 
 ```bash
-export TZ=America/New_York
-ticktick tasks list --due 2026-02-09
+export TICKTICK_HOST=ticktick.com
+# or
+export TICKTICK_HOST=dida365.com
+```
+
+You can also set host per server run:
+
+```bash
+ticktick server --host dida365.com
 ```
 
 ## Environment Variables
@@ -481,96 +401,89 @@ Required:
 - `TICKTICK_USERNAME`
 - `TICKTICK_PASSWORD`
 
-Optional:
+Common optional:
 
-- `TICKTICK_REDIRECT_URI`
-- `TICKTICK_HOST`
+- `TICKTICK_REDIRECT_URI` (default auth callback URI)
+- `TICKTICK_HOST` (`ticktick.com` or `dida365.com`)
+- `TICKTICK_CURRENT_PROJECT_ID` (default project for task creation)
+- `TZ` (timezone for local date behavior)
 - `TICKTICK_TIMEOUT`
 - `TICKTICK_DEVICE_ID`
-- `TICKTICK_CURRENT_PROJECT_ID`
-- `TZ`
 
 ## Troubleshooting
 
-- `Error: missing credentials`:
-  Check `.env` contains all required variables.
-- OAuth flow issues:
-  Confirm your app redirect URI exactly matches `TICKTICK_REDIRECT_URI`.
-- Headless machine:
-  Use `ticktick auth --manual`.
-- Unexpected API host behavior:
-  Set `TICKTICK_HOST=ticktick.com` or `TICKTICK_HOST=dida365.com` explicitly.
+### "Configuration error" or missing env vars
+
+- Ensure all required variables are present in `.env` or exported in shell.
+- Re-run:
+
+```bash
+ticktick projects list --json
+```
+
+### OAuth redirect mismatch
+
+- Ensure `TICKTICK_REDIRECT_URI` matches your app redirect URI exactly.
+- Re-run `ticktick auth` (or `ticktick auth --manual`).
+
+### `ticktick: command not found`
+
+- Install/upgrade:
+
+```bash
+python3 -m pip install --upgrade ticktick-cli
+```
+
+- If PATH still does not expose the script, run via module:
+
+```bash
+python3 -m ticktick_cli --help
+```
+
+- For local source checkout without package install:
+
+```bash
+PYTHONPATH=src python3 -m ticktick_cli --help
+```
+
+### Wrong region behavior
+
+- Set `TICKTICK_HOST` explicitly (`ticktick.com` or `dida365.com`).
+
+### Date output/filter looks wrong
+
+- Set `TZ` to the desired IANA timezone (for example `America/New_York`).
+- Prefer explicit ISO datetime for timed tasks.
 
 ## Development
+
+Create local environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+```
+
+Run unit tests:
+
+```bash
 .venv/bin/pytest -q
 ```
 
-Live E2E suite (real TickTick test account via `.env.test`):
-
-```bash
-cp .env.example .env.test
-```
-
-Fill `.env.test` with your dedicated test account credentials. The E2E harness
-loads `.env.test` automatically and keeps regular `.env` usage separate for
-local/manual CLI work.
+Run live E2E tests (requires real test account credentials in `.env.test`):
 
 ```bash
 TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e
 ```
 
-Run a single functional area:
+Build distribution:
 
 ```bash
-TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e_tasks
-TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e_projects
-TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e_tags
-TICKTICK_RUN_E2E=1 .venv/bin/pytest -q tests/e2e -m e2e_habits
-```
-
-## Build
-
-```bash
-python3 -m pip install build
 python3 -m build
-```
-
-## PyPI Release
-
-1. Bump version in `pyproject.toml`.
-2. Run release checks and build artifacts:
-
-```bash
-.venv/bin/pytest -q tests/test_cli.py
-python3 -m build
-.venv/bin/twine check dist/*
-```
-
-3. (Optional) Upload to TestPyPI:
-
-```bash
-TWINE_USERNAME=__token__ \
-TWINE_PASSWORD=<testpypi-token> \
-.venv/bin/twine upload --repository testpypi dist/*
-```
-
-4. Upload to PyPI:
-
-```bash
-TWINE_USERNAME=__token__ \
-TWINE_PASSWORD=<pypi-token> \
-.venv/bin/twine upload dist/*
 ```
 
 ## Acknowledgments
 
-- [TickTick](https://www.ticktick.com/) for providing the task platform and
-  developer APIs used by this CLI.
-- [`ticktick-sdk`](https://github.com/dev-mirzabicer/ticktick-sdk) for the API
-  integration, authentication flows, MCP server implementation, and core data
-  model/client foundation that powers `ticktick-cli`.
+- [TickTick](https://www.ticktick.com/) for the platform and developer APIs.
+- [`ticktick-sdk`](https://github.com/dev-mirzabicer/ticktick-sdk) for the underlying API/auth client infrastructure powering this CLI.

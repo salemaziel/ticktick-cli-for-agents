@@ -1,88 +1,69 @@
 ---
 name: ticktick-cli
-description: Operates TickTick through the ticktick-cli command-line interface, including installation/bootstrap, authentication, and deterministic read/write workflows for tasks, projects, folders, columns, tags, habits, user profile data, focus analytics, and full sync payload inspection. Use when users request TickTick terminal command execution, JSON output parsing, ID resolution, or troubleshooting TickTick CLI credentials and environment configuration.
+description: Operate TickTick through the `ticktick` command-line interface, including authentication, read/query flows, and safe mutations for tasks, projects, folders, columns, tags, habits, user info, focus analytics, and sync payloads. Use when users ask to run TickTick terminal commands, parse TickTick CLI JSON output, resolve IDs, or fix TickTick CLI configuration/auth failures.
 ---
 
 # TickTick CLI
 
-## Overview
+Use this skill to execute TickTick workflows directly from terminal commands with deterministic output handling.
 
-Use this skill to run TickTick operations through CLI commands with reliable preflight checks, explicit ID resolution, and post-mutation verification.
+## Execution Policy
 
-## Choose a Workflow
+1. Execute the requested `ticktick ...` command first. Do not run version or tool-presence pre-checks.
+2. If execution fails because CLI is missing, install and retry:
+   - `python3 -m pip install --upgrade ticktick-cli`
+   - Retry the same command.
+3. If the `ticktick` entrypoint is still unavailable in a local-source context, retry with module form:
+   - `PYTHONPATH=src python3 -m ticktick_cli ...`
+4. Use `--help` only as recovery when a command fails due unknown flags/arguments or missing required params.
 
-- Use the setup workflow for installation, environment configuration, and OAuth bootstrap.
-- Use the read workflow for list, search, analytics, and sync inspection requests.
-- Use the mutation workflow for create, update, move, complete, delete, or rename requests.
-- Use troubleshooting workflow when credentials, OAuth redirect, region host, or command semantics fail.
+## Defaults
 
-## Run Preflight Checks
-
-1. Confirm CLI availability with `ticktick --version`.
-2. If entrypoint is unavailable, use module fallback form `python3 -m ticktick_cli`.
-3. Confirm required credentials exist in environment or `.env`:
-   `TICKTICK_CLIENT_ID`, `TICKTICK_CLIENT_SECRET`, `TICKTICK_ACCESS_TOKEN`, `TICKTICK_USERNAME`, `TICKTICK_PASSWORD`.
-4. Run OAuth when token is missing or expired (`ticktick auth` or `ticktick auth --manual`).
-5. Confirm account connectivity with `ticktick projects list --json` before mutations.
-
-## Apply Execution Defaults
-
-- Prefer JSON-first execution:
-  - add `--json` on data commands
-  - parse machine output instead of text tables
+- Prefer `--json` on all data commands and parse structured output.
 - Resolve names to IDs before mutations; never guess identifiers.
-- Prefer explicit `--project PROJECT_ID` for deterministic task writes.
-- Use explicit date input:
-  - `YYYY-MM-DD` for date-only values
-  - ISO datetime for time-specific values
-- Set `TZ` when local date interpretation matters.
-- Set `TICKTICK_HOST` explicitly when routing should be pinned to `ticktick.com` or `dida365.com`.
-- Treat `auth` and `server` output as text-oriented even if `--json` is passed.
+- Prefer explicit `--project PROJECT_ID` for task mutations when deterministic behavior matters.
+- Use explicit date formats:
+  - `YYYY-MM-DD` for date-only fields
+  - ISO datetime for timed fields
+- Apply read -> mutate -> verify for every write operation.
+- Avoid batch commands unless user explicitly requests batch behavior.
 
-## Enforce Safety Rules
-
-- Require explicit user intent before destructive operations:
-  - delete operations (`tasks delete`, `projects delete`, `folders delete`, `columns delete`, `tags delete`)
-  - tag merges
-- Redact credentials and tokens from user-visible output.
-- For every mutation, perform read -> mutate -> verify loop.
-
-## Run the Read Workflow
-
-1. Identify the command family (`tasks`, `projects`, `folders`, `columns`, `tags`, `habits`, `user`, `focus`, `sync`).
-2. Resolve optional scope first (project, folder, tag, date range).
-3. Execute a read command with `--json`.
-4. Return only the requested fields or summary.
-
-## Run the Mutation Workflow
-
-Copy and track this checklist:
+## Mutation Checklist
 
 ```text
 Mutation Progress:
-- [ ] Step 1: Confirm explicit user intent for mutation
-- [ ] Step 2: Read current state (`list` or `get`)
-- [ ] Step 3: Resolve required IDs from current data
-- [ ] Step 4: Execute the narrowest mutation command
-- [ ] Step 5: Re-read entity and verify result
-- [ ] Step 6: Report changed fields and IDs
+- [ ] Confirm user intent for mutation
+- [ ] Read current state
+- [ ] Resolve IDs
+- [ ] Execute narrowest mutation command
+- [ ] Re-read and verify
+- [ ] Report changed fields and IDs
 ```
 
-## Run the Setup Workflow
+## Safety
 
-1. Follow `references/setup-and-auth.md`.
-2. Install package only when missing or when local editable install is requested.
-3. Configure `.env` and run OAuth bootstrap.
-4. Validate installation with version and a JSON read command.
+- Require explicit user confirmation before destructive operations:
+  - `tasks delete`
+  - `projects delete`
+  - `folders delete`
+  - `columns delete`
+  - `tags delete`
+  - `tags merge`
+  - `habits delete`
+- Redact secrets/tokens from user-visible output.
 
-## Run the Troubleshooting Workflow
+## Reference Map
 
-1. Identify failure class (credentials, OAuth redirect mismatch, region host, missing project context, date/time parsing).
-2. Follow targeted fixes in `references/troubleshooting.md`.
-3. Re-run minimal verification command after each fix.
+Load only the file needed for the active area.
 
-## Load References On Demand
+- Setup and auth: `references/setup-and-auth.md`
+- Tasks: `references/tasks.md`
+- Projects: `references/projects.md`
+- Folders: `references/folders.md`
+- Columns: `references/columns.md`
+- Tags: `references/tags.md`
+- Habits: `references/habits.md`
+- User, focus, sync: `references/user-focus-sync.md`
+- Troubleshooting: `references/troubleshooting.md`
 
-- Setup and OAuth: `references/setup-and-auth.md`
-- Single-entity reads and writes: `references/read-and-mutate-recipes.md`
-- Troubleshooting patterns: `references/troubleshooting.md`
+Use `references/read-and-mutate-recipes.md` only as a lightweight navigation index.

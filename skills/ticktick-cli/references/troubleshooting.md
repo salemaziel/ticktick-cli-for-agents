@@ -2,67 +2,97 @@
 
 ## Contents
 
+- Missing CLI executable
 - Missing credentials
-- OAuth problems
-- Command not found
-- Wrong region host
+- OAuth redirect/auth issues
+- Parameter mismatch errors
+- Host routing issues
 - Project resolution surprises
-- Date and timezone confusion
+- Date/time confusion
+
+## Missing CLI executable
+
+Symptoms:
+
+- `ticktick: command not found`
+- Entry-point not available
+
+Fix:
+
+1. Install (or upgrade) only after failure:
+
+```bash
+python3 -m pip install --upgrade ticktick-cli
+```
+
+2. Retry original command.
+3. If script entrypoint remains unavailable in source checkout, use module fallback:
+
+```bash
+PYTHONPATH=src python3 -m ticktick_cli <same-args>
+```
 
 ## Missing credentials
 
 Symptoms:
 
-- Error mentions missing credentials
-- Authenticated commands fail immediately
+- `Configuration error: ...`
+- Output mentions missing env vars
 
 Fix:
 
-1. Verify required values exist:
-`TICKTICK_CLIENT_ID`, `TICKTICK_CLIENT_SECRET`, `TICKTICK_ACCESS_TOKEN`, `TICKTICK_USERNAME`, `TICKTICK_PASSWORD`.
-2. Re-run auth if token is absent or expired:
+1. Ensure required values exist:
+   - `TICKTICK_CLIENT_ID`
+   - `TICKTICK_CLIENT_SECRET`
+   - `TICKTICK_ACCESS_TOKEN`
+   - `TICKTICK_USERNAME`
+   - `TICKTICK_PASSWORD`
+2. Re-run auth if token missing/expired:
    - `ticktick auth`
-   - `ticktick auth --manual` for headless sessions.
-3. Re-test with:
+   - `ticktick auth --manual`
+3. Verify with:
    - `ticktick projects list --json`
 
-## OAuth problems
+## OAuth redirect/auth issues
 
 Symptoms:
 
 - OAuth callback fails
-- Redirect mismatch error
+- Redirect mismatch
+- No code/token returned
 
 Fix:
 
-1. Confirm redirect URI in TickTick developer app matches `TICKTICK_REDIRECT_URI` exactly.
-2. Re-run auth flow.
-3. Persist returned access token.
+1. Confirm app redirect URI in TickTick Developer Portal exactly matches `TICKTICK_REDIRECT_URI`.
+2. Re-run OAuth command.
+3. Save returned token into `TICKTICK_ACCESS_TOKEN`.
 
-## Command not found
+## Parameter mismatch errors
 
 Symptoms:
 
-- `ticktick: command not found`
+- argparse errors (`unrecognized arguments`, `required`, invalid value)
+- validation errors from command handler
 
 Fix:
 
-1. Install package:
-   - `python3 -m pip install --upgrade ticktick-cli`
-2. If entrypoint still unavailable, use module fallback:
-   - `python3 -m ticktick_cli --version`
-   - `python3 -m ticktick_cli projects list --json`
+1. Open only the relevant domain reference file and validate args.
+2. If still unclear, use help as recovery:
 
-## Wrong region host
+```bash
+ticktick <group> <action> --help
+```
+
+Do not use `--help` as a default pre-step when parameters are already known.
+
+## Host routing issues
 
 Symptoms:
 
-- Unexpected host behavior
-- Account routed to incorrect region
+- Wrong region behavior
+- Unexpected auth/session behavior
 
 Fix:
-
-Set host explicitly:
 
 ```bash
 export TICKTICK_HOST=ticktick.com
@@ -70,27 +100,37 @@ export TICKTICK_HOST=ticktick.com
 export TICKTICK_HOST=dida365.com
 ```
 
+You can also pin host for server run:
+
+```bash
+ticktick server --host ticktick.com
+```
+
 ## Project resolution surprises
 
 Symptoms:
 
-- Mutation affects unexpected project
-- Create/list commands default to inbox unexpectedly
+- Task created or mutated in unexpected project
 
 Fix:
 
-1. Pass explicit `--project PROJECT_ID`.
-2. If using implicit behavior intentionally, verify `TICKTICK_CURRENT_PROJECT_ID`.
-3. Re-check with `ticktick tasks list --project PROJECT_ID --json`.
+1. Pass explicit `--project PROJECT_ID` on task commands.
+2. Check `TICKTICK_CURRENT_PROJECT_ID` when relying on implicit create behavior.
+3. Re-verify with scoped read command:
 
-## Date and timezone confusion
+```bash
+ticktick tasks list --project PROJECT_ID --json
+```
+
+## Date/time confusion
 
 Symptoms:
 
-- Tasks show unexpected due date or time
+- Due dates appear shifted
+- `--due` filters return unexpected results
 
 Fix:
 
 1. Use explicit `YYYY-MM-DD` or ISO datetime inputs.
-2. Set `TZ` before date-sensitive commands.
-3. Use `--time-zone` on task create/update when needed.
+2. Set `TZ` to intended timezone.
+3. Set task `--time-zone` when stored timezone must be explicit.
