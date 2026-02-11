@@ -1,130 +1,75 @@
 # TickTick CLI Troubleshooting
 
-## Contents
-
-- Missing CLI executable
-- Missing credentials
-- OAuth redirect/auth issues
-- Parameter mismatch errors
-- Host routing issues
-- Project resolution surprises
-- Date/time confusion
-
-## Missing CLI executable
+## 1) Missing CLI
 
 Symptoms:
 
 - `ticktick: command not found`
-- Entry-point not available
+- `No module named ticktick_cli`
 
 Fix:
 
-1. Install (or upgrade) only after failure:
+1. Ask user permission before install.
+2. Install in isolated env (prefer local `.venv`).
+3. Retry the same command.
 
-```bash
-python3 -m pip install --upgrade ticktick-cli
-```
+If pip shows `error: externally-managed-environment`:
 
-2. Retry original command.
-3. If script entrypoint remains unavailable in source checkout, use module fallback:
+- Stop system install attempts.
+- Use local `.venv` install flow from `references/setup-and-auth.md`.
 
-```bash
-PYTHONPATH=src python3 -m ticktick_cli <same-args>
-```
-
-## Missing credentials
+## 2) Missing credentials (most common)
 
 Symptoms:
 
-- `Configuration error: ...`
-- Output mentions missing env vars
+- `Configuration incomplete`
+- Missing one or more `TICKTICK_*` vars
+- `V2 session credentials incomplete`
 
 Fix:
 
-1. Ensure required values exist:
+1. Set all required vars, not only OAuth vars:
    - `TICKTICK_CLIENT_ID`
    - `TICKTICK_CLIENT_SECRET`
+   - `TICKTICK_REDIRECT_URI`
    - `TICKTICK_ACCESS_TOKEN`
    - `TICKTICK_USERNAME`
    - `TICKTICK_PASSWORD`
-2. Re-run auth if token missing/expired:
-   - `ticktick auth`
-   - `ticktick auth --manual`
-3. Verify with:
+2. Re-run:
    - `ticktick projects list --json`
+   - then original command
 
-## OAuth redirect/auth issues
-
-Symptoms:
-
-- OAuth callback fails
-- Redirect mismatch
-- No code/token returned
-
-Fix:
-
-1. Confirm app redirect URI in TickTick Developer Portal exactly matches `TICKTICK_REDIRECT_URI`.
-2. Re-run OAuth command.
-3. Save returned token into `TICKTICK_ACCESS_TOKEN`.
-
-## Parameter mismatch errors
+## 3) Manual OAuth expires
 
 Symptoms:
 
-- argparse errors (`unrecognized arguments`, `required`, invalid value)
-- validation errors from command handler
+- Auth code fails or prompt times out
 
 Fix:
 
-1. Open only the relevant domain reference file and validate args.
-2. If still unclear, use help as recovery:
+1. Re-run `ticktick auth --manual`.
+2. Approve immediately and paste a fresh `code`.
+3. If interactive session is unstable, user runs auth locally and provides token.
 
-```bash
-ticktick <group> <action> --help
-```
-
-Do not use `--help` as a default pre-step when parameters are already known.
-
-## Host routing issues
+## 4) Redirect mismatch
 
 Symptoms:
 
-- Wrong region behavior
-- Unexpected auth/session behavior
+- Callback fails
+- Redirect mismatch error
 
 Fix:
 
-```bash
-export TICKTICK_HOST=ticktick.com
-# or
-export TICKTICK_HOST=dida365.com
-```
+1. Ensure app redirect URI exactly equals `TICKTICK_REDIRECT_URI`.
+2. Re-run auth.
 
-## Project resolution surprises
+## 5) Arg/flag errors
 
 Symptoms:
 
-- Task created or mutated in unexpected project
+- `unrecognized arguments`
+- required argument errors
 
 Fix:
 
-1. Pass explicit `--project PROJECT_ID` on task commands.
-2. Check `TICKTICK_CURRENT_PROJECT_ID` when relying on implicit create behavior.
-3. Re-verify with scoped read command:
-
-```bash
-ticktick tasks list --project PROJECT_ID --json
-```
-
-## Date/time confusion
-
-Symptoms:
-
-- Due dates appear shifted
-- `--due` filters return unexpected results
-
-Fix:
-
-1. Use explicit `YYYY-MM-DD` or ISO datetime inputs.
-2. Set `TZ` to intended timezone.
-3. Set task `--time-zone` when stored timezone must be explicit.
+- Use `ticktick <group> <action> --help` and retry.

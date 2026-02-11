@@ -1,4 +1,0 @@
-interface:
-  display_name: "TickTick CLI"
-  short_description: "Run TickTick CLI workflows safely"
-  default_prompt: "Use $ticktick-cli to execute TickTick commands directly, install only if the CLI is missing, then run JSON-first auth/read/mutation workflows with ID-safe updates."
