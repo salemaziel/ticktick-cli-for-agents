@@ -41,12 +41,12 @@ Use this skill to execute TickTick workflows directly from terminal commands wit
 
 Load only the file needed for the active area.
 
-- Setup and auth: `references/setup-and-auth.md`
-- Tasks: `references/tasks.md`
-- Projects: `references/projects.md`
-- Folders: `references/folders.md`
-- Columns: `references/columns.md`
-- Tags: `references/tags.md`
-- Habits: `references/habits.md`
-- User, focus, sync: `references/user-focus-sync.md`
-- Troubleshooting: `references/troubleshooting.md`
+- [Setup and auth](references/setup-and-auth.md)
+- [Tasks](references/tasks.md)
+- [Projects](references/projects.md)
+- [Folders](references/folders.md)
+- [Columns](references/columns.md)
+- [Tags](references/tags.md)
+- [Habits](references/habits.md)
+- [User, focus, sync](references/user-focus-sync.md)
+- [Troubleshooting](references/troubleshooting.md)
