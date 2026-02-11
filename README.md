@@ -4,10 +4,9 @@ A standalone command-line interface for TickTick.
 
 `ticktick-cli` gives you scriptable access to tasks, projects, folders, columns, tags, habits, account data, focus analytics, and full sync payloads.
 
-This README focuses on practical day-to-day CLI workflows (single-item operations). Batch commands are intentionally not covered here.
-
 ## Table of Contents
 
+- [Agent Skill](#agent-skill)
 - [Installation](#installation)
 - [Authentication (Required)](#authentication-required)
 - [Quick Start](#quick-start)
@@ -18,6 +17,14 @@ This README focuses on practical day-to-day CLI workflows (single-item operation
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
 - [Acknowledgments](#acknowledgments)
+
+## Agent Skill
+
+Enable your AI agent (Gemini, Claude, Cursor) to manage your TickTick tasks, projects, and habits using natural language:
+
+```bash
+npx skills add flexoid/ticktick-cli
+```
 
 ## Installation
 
@@ -318,7 +325,6 @@ ticktick habits checkin HABIT_ID [--value FLOAT] [--date YYYY-MM-DD] [--json]
 ticktick habits archive HABIT_ID [--json]
 ticktick habits unarchive HABIT_ID [--json]
 ticktick habits delete HABIT_ID [--json]
-ticktick habits checkins HABIT_ID [HABIT_ID ...] [--after-stamp YYYYMMDD] [--json]
 ```
 
 ### User
