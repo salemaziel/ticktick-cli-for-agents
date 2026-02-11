@@ -16,6 +16,7 @@ A standalone command-line interface for TickTick.
 - [Environment Variables](#environment-variables)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
+- [Release Process](#release-process)
 - [Acknowledgments](#acknowledgments)
 
 ## Agent Skill
@@ -445,7 +446,7 @@ Create local environment:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,release]"
 ```
 
 Run unit tests:
@@ -464,6 +465,16 @@ Build distribution:
 
 ```bash
 python3 -m build
+```
+
+## Release Process
+
+Use the standard Python release flow documented in `RELEASING.md`.
+
+Minimal prepare commands:
+
+```bash
+make release-check
 ```
 
 ## Acknowledgments
