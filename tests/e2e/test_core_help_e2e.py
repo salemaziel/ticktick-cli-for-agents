@@ -7,11 +7,8 @@ import pytest
 
 @pytest.mark.e2e
 @pytest.mark.e2e_core
-def test_server_and_auth_help(cli, e2e_enabled: None) -> None:
-    server_help = cli.run_text(["server", "--help"])
+def test_auth_help(cli, e2e_enabled: None) -> None:
     auth_help = cli.run_text(["auth", "--help"])
 
-    assert "usage:" in server_help.lower()
-    assert "enabledmodules" in server_help.lower()
     assert "usage:" in auth_help.lower()
     assert "manual" in auth_help.lower()

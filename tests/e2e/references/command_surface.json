@@ -1,6 +1,5 @@
 {
   "single_commands": [
-    "server",
     "auth",
     "sync"
   ],

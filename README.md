@@ -130,27 +130,10 @@ ticktick --json <command>
 Notes:
 
 - `--json` is supported on data commands and is recommended for scripting.
-- `auth` and `server` accept `--json` for CLI consistency, but output remains text/interactive.
-- Running `ticktick` with no command starts `ticktick server`.
+- `auth` accepts `--json` for CLI consistency, but output remains text/interactive.
+- Running `ticktick` without a command prints help.
 
 ## Command Reference
-
-### Server
-
-Run MCP server (default command):
-
-```bash
-ticktick server
-ticktick server --enabledModules tasks,projects
-ticktick server --enabledTools ticktick_list_tasks,ticktick_create_tasks
-ticktick server --host ticktick.com
-```
-
-Flags:
-
-- `--enabledModules`: comma-separated modules (`tasks,projects,folders,columns,tags,habits,user,focus`)
-- `--enabledTools`: comma-separated tool names
-- `--host`: `ticktick.com` (default) or `dida365.com`
 
 ### Auth
 
@@ -383,12 +366,6 @@ Set region host explicitly when needed:
 export TICKTICK_HOST=ticktick.com
 # or
 export TICKTICK_HOST=dida365.com
-```
-
-You can also set host per server run:
-
-```bash
-ticktick server --host dida365.com
 ```
 
 ## Environment Variables

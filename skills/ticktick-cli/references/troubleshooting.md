@@ -100,12 +100,6 @@ export TICKTICK_HOST=ticktick.com
 export TICKTICK_HOST=dida365.com
 ```
 
-You can also pin host for server run:
-
-```bash
-ticktick server --host ticktick.com
-```
-
 ## Project resolution surprises
 
 Symptoms:
