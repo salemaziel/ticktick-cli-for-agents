@@ -24,7 +24,7 @@ A standalone command-line interface for TickTick.
 Enable your AI agent (Gemini, Claude, Cursor) to manage your TickTick tasks, projects, and habits using natural language:
 
 ```bash
-npx skills add flexoid/ticktick-cli
+npx skills add salemaziel/ticktick-cli
 ```
 
 ## Installation
