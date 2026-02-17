@@ -183,9 +183,8 @@ ticktick tasks add TITLE \
   [--content TEXT] \
   [--description TEXT] \
   [--kind TEXT|NOTE|CHECKLIST] \
-  [--start YYYY-MM-DD|ISO_DATETIME] \
-  [--due YYYY-MM-DD|ISO_DATETIME] \
-  [--priority none|low|medium|high] \
+  [--start YYYY-MM-DD|ISO_DATETIME|NATURAL] \
+  [--due YYYY-MM-DD|ISO_DATETIME|NATURAL] \  [--priority none|low|medium|high] \
   [--tags tag1,tag2] \
   [--recurrence RRULE] \
   [--time-zone IANA_TZ] \
@@ -208,8 +207,8 @@ ticktick tasks update TASK_ID \
   [--description TEXT] \
   [--kind TEXT|NOTE|CHECKLIST] \
   [--priority none|low|medium|high] \
-  [--start YYYY-MM-DD|ISO_DATETIME|--clear-start] \
-  [--due YYYY-MM-DD|ISO_DATETIME|--clear-due] \
+  [--start YYYY-MM-DD|ISO_DATETIME|NATURAL|--clear-start] \
+  [--due YYYY-MM-DD|ISO_DATETIME|NATURAL|--clear-due] \
   [--tags tag1,tag2|--clear-tags] \
   [--recurrence RRULE|--clear-recurrence] \
   [--time-zone IANA_TZ] \
@@ -360,7 +359,7 @@ When `--project` is omitted:
 ### Date, time, timezone
 
 - `tasks --due` filter expects `YYYY-MM-DD`.
-- `tasks add/update --start` and `--due` accept `YYYY-MM-DD` or ISO datetime.
+- `tasks add/update --start` and `--due` accept `YYYY-MM-DD`, ISO datetime, or natural language expressions (e.g. `today`, `tomorrow`, `next monday`, `in 3 days`, `in 2 weeks`).
 - `focus --from/--to` and `habits checkin --date` expect `YYYY-MM-DD`.
 - `TZ` controls local date interpretation in CLI output/filtering.
 - `--time-zone` on task create/update sets stored task timezone explicitly.

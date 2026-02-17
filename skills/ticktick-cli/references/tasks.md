@@ -60,8 +60,8 @@ ticktick tasks add TITLE \
   [--content TEXT] \
   [--description TEXT] \
   [--kind TEXT|NOTE|CHECKLIST] \
-  [--start YYYY-MM-DD|ISO_DATETIME] \
-  [--due YYYY-MM-DD|ISO_DATETIME] \
+  [--start YYYY-MM-DD|ISO_DATETIME|NATURAL] \
+  [--due YYYY-MM-DD|ISO_DATETIME|NATURAL] \
   [--priority none|low|medium|high] \
   [--tags tag1,tag2] \
   [--recurrence RRULE] \
@@ -80,7 +80,7 @@ Parameter notes:
 - `--content`: note/body text.
 - `--description`: checklist description field.
 - `--kind`: task kind (`TEXT`, `NOTE`, `CHECKLIST`; case-insensitive in CLI input).
-- `--start`, `--due`: accept date-only or ISO datetime.
+- `--start`, `--due`: accept date-only, ISO datetime, or natural language expressions (`today`, `tomorrow`, `yesterday`, `next week`, `next month`, `next monday`, `in 3 days`, `in 2 weeks`, `in 1 month`).
 - `--tags`: comma-separated names.
 - `--recurrence`: RRULE string.
 - `--time-zone`: IANA timezone stored on task.
@@ -98,8 +98,8 @@ ticktick tasks update TASK_ID \
   [--description TEXT] \
   [--kind TEXT|NOTE|CHECKLIST] \
   [--priority none|low|medium|high] \
-  [--start YYYY-MM-DD|ISO_DATETIME|--clear-start] \
-  [--due YYYY-MM-DD|ISO_DATETIME|--clear-due] \
+  [--start YYYY-MM-DD|ISO_DATETIME|NATURAL|--clear-start] \
+  [--due YYYY-MM-DD|ISO_DATETIME|NATURAL|--clear-due] \
   [--tags tag1,tag2|--clear-tags] \
   [--recurrence RRULE|--clear-recurrence] \
   [--time-zone IANA_TZ] \
@@ -141,7 +141,7 @@ Parameter notes:
 
 - Priority mapping: `none=0`, `low=1`, `medium=3`, `high=5`.
 - `TZ` controls local-date interpretation for listing/filtering.
-- Date-only values are interpreted as all-day task values.
+- Date-only and natural-language values are interpreted as all-day task values.
 - Use `--json` for deterministic parsing.
 
 Use `ticktick tasks <action> --help` only when a command fails due parameter mismatch.
