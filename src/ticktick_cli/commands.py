@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
-from datetime import UTC, date, datetime, time, tzinfo
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -207,6 +208,76 @@ def _parse_iso_date(value: str, *, flag_name: str) -> date:
         raise ValueError(f"Invalid {flag_name} value '{value}'. Expected YYYY-MM-DD.") from exc
 
 
+_WEEKDAY_NAMES: dict[str, int] = {
+    "monday": 0, "mon": 0,
+    "tuesday": 1, "tue": 1,
+    "wednesday": 2, "wed": 2,
+    "thursday": 3, "thu": 3,
+    "friday": 4, "fri": 4,
+    "saturday": 5, "sat": 5,
+    "sunday": 6, "sun": 6,
+}
+
+_IN_N_PATTERN = re.compile(
+    r"^in\s+(\d+)\s+(day|days|week|weeks|month|months)$",
+    re.IGNORECASE,
+)
+
+
+def _parse_natural_date(value: str, tz: tzinfo) -> date | None:
+    """Try to interpret *value* as a natural-language date expression.
+
+    Returns the resolved :class:`date` in the caller's timezone, or ``None``
+    when the string is not recognised as a natural-language phrase.
+
+    Supported phrases (case-insensitive):
+    - ``today``
+    - ``tomorrow``
+    - ``yesterday``
+    - ``next week`` (7 days from today)
+    - ``next month`` (30 days from today)
+    - ``next <weekday>`` (e.g. ``next monday``)
+    - ``in N day(s) / week(s) / month(s)`` (e.g. ``in 3 days``)
+    """
+    today = datetime.now(tz).date()
+    lower = value.strip().lower()
+
+    if lower == "today":
+        return today
+    if lower == "tomorrow":
+        return today + timedelta(days=1)
+    if lower == "yesterday":
+        return today - timedelta(days=1)
+    if lower == "next week":
+        return today + timedelta(weeks=1)
+    if lower == "next month":
+        return today + timedelta(days=30)
+
+    # "next <weekday>"
+    if lower.startswith("next "):
+        weekday_str = lower[5:].strip()
+        weekday_num = _WEEKDAY_NAMES.get(weekday_str)
+        if weekday_num is not None:
+            days_ahead = (weekday_num - today.weekday()) % 7
+            if days_ahead == 0:
+                days_ahead = 7
+            return today + timedelta(days=days_ahead)
+
+    # "in N day(s)/week(s)/month(s)"
+    m = _IN_N_PATTERN.match(lower)
+    if m:
+        count = int(m.group(1))
+        unit = m.group(2).lower().rstrip("s")
+        if unit == "day":
+            return today + timedelta(days=count)
+        if unit == "week":
+            return today + timedelta(weeks=count)
+        if unit == "month":
+            return today + timedelta(days=count * 30)
+
+    return None
+
+
 def _parse_due_for_creation(value: str, tz: tzinfo) -> tuple[datetime, bool]:
     try:
         due_day = date.fromisoformat(value)
@@ -216,13 +287,21 @@ def _parse_due_for_creation(value: str, tz: tzinfo) -> tuple[datetime, bool]:
 
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise ValueError(
-            f"Invalid --due value '{value}'. Use YYYY-MM-DD or ISO datetime."
-        ) from exc
+    except ValueError:
+        pass
+    else:
+        parsed = parsed.replace(tzinfo=tz) if parsed.tzinfo is None else parsed.astimezone(tz)
+        return parsed, False
 
-    parsed = parsed.replace(tzinfo=tz) if parsed.tzinfo is None else parsed.astimezone(tz)
-    return parsed, False
+    natural = _parse_natural_date(value, tz)
+    if natural is not None:
+        return datetime.combine(natural, time.min, tz), True
+
+    raise ValueError(
+        f"Invalid --due value '{value}'. "
+        "Use YYYY-MM-DD, ISO datetime, or a natural expression "
+        "(e.g. 'today', 'tomorrow', 'next monday', 'in 3 days')."
+    )
 
 
 def _parse_csv_list(value: str | None) -> list[str] | None:

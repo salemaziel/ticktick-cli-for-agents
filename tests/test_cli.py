@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from argparse import Namespace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -16,6 +16,8 @@ from ticktick_cli.commands import (
     _run_folders_command,
     _run_habits_command,
     _patch_v2_session_handler_for_429,
+    _parse_natural_date,
+    _parse_due_for_creation,
     _run_projects_command,
     _run_sync_command,
     _run_tasks_command,
@@ -636,6 +638,34 @@ async def test_tasks_add_uses_current_project_and_json_output(monkeypatch, capsy
     assert output["success"] is True
     assert output["task"]["title"] == "Buy groceries"
     assert output["task"]["content"] == "Milk, eggs, bread"
+
+
+@pytest.mark.asyncio
+async def test_tasks_add_with_natural_language_due(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TICKTICK_CURRENT_PROJECT_ID", "proj-current")
+    monkeypatch.setenv("TZ", "America/New_York")
+
+    client = _FakeClient()
+    args = Namespace(
+        command="tasks",
+        tasks_command="add",
+        title="Call dentist",
+        project_id=None,
+        due="tomorrow",
+        content=None,
+        priority=None,
+        json=True,
+    )
+
+    exit_code = await _run_tasks_command(client, args)
+    assert exit_code == 0
+
+    assert len(client.create_task_calls) == 1
+    call = client.create_task_calls[0]
+    expected_date = (datetime.now(ZoneInfo("America/New_York")).date() + timedelta(days=1))
+    assert call["due_date"].date() == expected_date
+    assert call["all_day"] is True
+    assert call["due_date"].tzinfo is not None
 
 
 @pytest.mark.asyncio
@@ -1870,3 +1900,120 @@ def test_patch_v2_session_handler_for_429_keeps_fixed_sdk_untouched() -> None:
 
     assert applied is False
     assert FixedSessionHandler._get_headers is original_headers_method
+
+
+# ---------------------------------------------------------------------------
+# Natural language date parsing tests
+# ---------------------------------------------------------------------------
+
+_NY = ZoneInfo("America/New_York")
+
+
+class TestParseNaturalDate:
+    """Tests for _parse_natural_date helper."""
+
+    def test_today(self) -> None:
+        result = _parse_natural_date("today", _NY)
+        assert result == datetime.now(_NY).date()
+
+    def test_tomorrow(self) -> None:
+        result = _parse_natural_date("tomorrow", _NY)
+        assert result == datetime.now(_NY).date() + timedelta(days=1)
+
+    def test_yesterday(self) -> None:
+        result = _parse_natural_date("yesterday", _NY)
+        assert result == datetime.now(_NY).date() - timedelta(days=1)
+
+    def test_next_week(self) -> None:
+        result = _parse_natural_date("next week", _NY)
+        assert result == datetime.now(_NY).date() + timedelta(weeks=1)
+
+    def test_next_month(self) -> None:
+        result = _parse_natural_date("next month", _NY)
+        assert result == datetime.now(_NY).date() + timedelta(days=30)
+
+    def test_next_weekday(self) -> None:
+        today = datetime.now(_NY).date()
+        result = _parse_natural_date("next monday", _NY)
+        assert result is not None
+        assert result.weekday() == 0  # Monday
+        assert result > today
+        assert (result - today).days <= 7
+
+    def test_next_weekday_abbreviated(self) -> None:
+        result = _parse_natural_date("next fri", _NY)
+        assert result is not None
+        assert result.weekday() == 4  # Friday
+
+    def test_in_n_days(self) -> None:
+        result = _parse_natural_date("in 3 days", _NY)
+        assert result == datetime.now(_NY).date() + timedelta(days=3)
+
+    def test_in_1_day(self) -> None:
+        result = _parse_natural_date("in 1 day", _NY)
+        assert result == datetime.now(_NY).date() + timedelta(days=1)
+
+    def test_in_n_weeks(self) -> None:
+        result = _parse_natural_date("in 2 weeks", _NY)
+        assert result == datetime.now(_NY).date() + timedelta(weeks=2)
+
+    def test_in_n_months(self) -> None:
+        result = _parse_natural_date("in 1 month", _NY)
+        assert result == datetime.now(_NY).date() + timedelta(days=30)
+
+    def test_case_insensitive(self) -> None:
+        result = _parse_natural_date("Tomorrow", _NY)
+        assert result == datetime.now(_NY).date() + timedelta(days=1)
+
+    def test_case_insensitive_next(self) -> None:
+        result = _parse_natural_date("Next Monday", _NY)
+        assert result is not None
+        assert result.weekday() == 0
+
+    def test_unrecognised_returns_none(self) -> None:
+        assert _parse_natural_date("not-a-date", _NY) is None
+
+    def test_iso_date_not_matched(self) -> None:
+        assert _parse_natural_date("2025-03-15", _NY) is None
+
+
+class TestParseDueForCreationNatural:
+    """Tests for natural language support in _parse_due_for_creation."""
+
+    def test_iso_date_still_works(self) -> None:
+        dt, all_day = _parse_due_for_creation("2025-06-15", _NY)
+        assert dt.date() == date(2025, 6, 15)
+        assert all_day is True
+
+    def test_iso_datetime_still_works(self) -> None:
+        dt, all_day = _parse_due_for_creation("2025-06-15T14:30:00", _NY)
+        assert dt.hour == 14
+        assert dt.minute == 30
+        assert all_day is False
+
+    def test_tomorrow_returns_all_day(self) -> None:
+        dt, all_day = _parse_due_for_creation("tomorrow", _NY)
+        expected = datetime.now(_NY).date() + timedelta(days=1)
+        assert dt.date() == expected
+        assert all_day is True
+        assert dt.tzinfo is not None
+
+    def test_today_returns_all_day(self) -> None:
+        dt, all_day = _parse_due_for_creation("today", _NY)
+        assert dt.date() == datetime.now(_NY).date()
+        assert all_day is True
+
+    def test_in_3_days(self) -> None:
+        dt, all_day = _parse_due_for_creation("in 3 days", _NY)
+        expected = datetime.now(_NY).date() + timedelta(days=3)
+        assert dt.date() == expected
+        assert all_day is True
+
+    def test_next_monday(self) -> None:
+        dt, all_day = _parse_due_for_creation("next monday", _NY)
+        assert dt.date().weekday() == 0
+        assert all_day is True
+
+    def test_invalid_raises_with_hint(self) -> None:
+        with pytest.raises(ValueError, match="natural expression"):
+            _parse_due_for_creation("not-valid", _NY)

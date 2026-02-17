@@ -168,13 +168,13 @@ Examples:
         "--start",
         type=str,
         default=None,
-        help="Start value: YYYY-MM-DD or ISO datetime.",
+        help="Start value: YYYY-MM-DD, ISO datetime, or natural expression (e.g. 'today', 'tomorrow', 'next monday', 'in 3 days').",
     )
     tasks_add_parser.add_argument(
         "--due",
         type=str,
         default=None,
-        help="Due value: YYYY-MM-DD or ISO datetime.",
+        help="Due value: YYYY-MM-DD, ISO datetime, or natural expression (e.g. 'today', 'tomorrow', 'next monday', 'in 3 days').",
     )
     tasks_add_parser.add_argument(
         "--priority",
@@ -265,7 +265,7 @@ Examples:
         "--start",
         type=str,
         default=None,
-        help="Set start value (YYYY-MM-DD or ISO datetime).",
+        help="Set start value (YYYY-MM-DD, ISO datetime, or natural expression).",
     )
     tasks_update_parser.add_argument(
         "--clear-start",
@@ -276,7 +276,7 @@ Examples:
         "--due",
         type=str,
         default=None,
-        help="Set due value (YYYY-MM-DD or ISO datetime).",
+        help="Set due value (YYYY-MM-DD, ISO datetime, or natural expression).",
     )
     tasks_update_parser.add_argument(
         "--clear-due",
