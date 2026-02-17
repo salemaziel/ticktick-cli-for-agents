@@ -184,7 +184,8 @@ ticktick tasks add TITLE \
   [--description TEXT] \
   [--kind TEXT|NOTE|CHECKLIST] \
   [--start YYYY-MM-DD|ISO_DATETIME|NATURAL] \
-  [--due YYYY-MM-DD|ISO_DATETIME|NATURAL] \  [--priority none|low|medium|high] \
+  [--due YYYY-MM-DD|ISO_DATETIME|NATURAL] \
+  [--priority none|low|medium|high] \
   [--tags tag1,tag2] \
   [--recurrence RRULE] \
   [--time-zone IANA_TZ] \
